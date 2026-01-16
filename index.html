@@ -9,17 +9,14 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; margin:0; padding:0;
 header { background: #0b5ed7; color: white; padding: 20px; text-align:center; }
 section { padding: 20px; }
 .card { background: white; padding:20px; border-radius:8px; box-shadow:0 0 15px rgba(0,0,0,0.2); margin-bottom:20px; }
-input, button, select { width:100%; padding:12px; margin-top:10px; font-size:16px; }
+input, button { width:100%; padding:12px; margin-top:10px; font-size:16px; }
 button { background:#0b5ed7; color:white; border:none; border-radius:5px; cursor:pointer; }
 button:hover { opacity:0.9; }
 table { width:100%; border-collapse: collapse; margin-top:10px; font-size:14px; }
 th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 th { background:#0b5ed7; color:white; }
-td.entrada { background: #d4edda; }
-td.saida { background: #f8d7da; }
-td.almoco { background: #fff3cd; }
-td.horaExtra { background: #ffeeba; }
-#verRegistrosBtn { float:right; margin-bottom:10px; width:auto; }
+#funcCard, #bossCard { display:none; }
+.top-button { float:right; margin-bottom:10px; width:auto; padding:8px 16px; }
 </style>
 </head>
 <body>
@@ -30,20 +27,21 @@ td.horaExtra { background: #ffeeba; }
 </header>
 
 <!-- LOGIN -->
-<section id="loginCard" class="card">
+<section class="card" id="loginCard">
 <h3>Login</h3>
-<input type="text" id="codigo" placeholder="Digite seu código (ex: RB01)">
-<input type="text" id="nome" placeholder="Digite seu nome (opcional)">
+<input type="text" id="userCode" placeholder="Digite seu código (ex: RB01 ou ADM01)">
+<input type="text" id="userName" placeholder="Digite seu nome (opcional)">
 <button onclick="login()">Entrar</button>
 <p id="loginMsg" style="color:red;"></p>
 </section>
 
 <!-- ÁREA DO FUNCIONÁRIO -->
-<section id="funcCard" class="card" style="display:none">
-<h3>Bem-vindo <span id="funcNome"></span></h3>
-<button id="verRegistrosBtn" onclick="mostrarTodosRegistros()">Ver Todos os Registros</button>
+<section class="card" id="funcCard">
+<h3>Bem-vindo, <span id="funcNameDisplay"></span></h3>
+<button class="top-button" id="verRegistrosBtn" onclick="displayUserRecords()">Ver Todos os Registros</button>
+<button class="top-button" id="deleteRecordsBtn" onclick="deleteUserRecords()">Apagar Todos Meus Registros</button>
+
 <table>
-<thead>
 <tr>
 <th>Entrada</th>
 <th>Saída Almoço</th>
@@ -51,117 +49,134 @@ td.horaExtra { background: #ffeeba; }
 <th>Saída Trabalho</th>
 <th>Horas Extras</th>
 </tr>
-</thead>
-<tbody>
 <tr>
 <td><input type="time" id="entrada"></td>
 <td><input type="time" id="saidaAlmoco"></td>
 <td><input type="time" id="retornoAlmoco"></td>
-<td><input type="time" id="saidaTrabalho"></td>
-<td><input type="time" id="horasExtras"></td>
+<td><input type="time" id="saida"></td>
+<td><input type="time" id="horaExtra"></td>
 </tr>
-</tbody>
 </table>
-<button onclick="salvarRegistro()">Salvar Registro</button>
-<h4>Seus registros:</h4>
-<div id="registrosFuncionario"></div>
+<button onclick="saveRecord()">Salvar Registro</button>
+
+<div id="userRecords"></div>
 </section>
 
 <!-- ÁREA DO PATRÃO -->
-<section id="bossCard" class="card" style="display:none">
+<section class="card" id="bossCard">
 <h3>Área do Patrão</h3>
-<button onclick="mostrarTodosFuncionarios()">Ver Todos os Registros de Funcionários</button>
-<div id="registrosTodos"></div>
+<button onclick="viewAllEmployeeRecords()">Ver Todos os Registros de Funcionários</button>
+<button id="deleteAllBtn" onclick="deleteAllRecords()">Apagar Todos os Registros de Todos</button>
+<div id="allRecords"></div>
 </section>
 
 <script>
 // Códigos válidos
-const codigosFuncionarios = [];
-for(let i=1;i<=100;i++){ 
-    codigosFuncionarios.push('RB'+(i<10?'0'+i:i)); 
-}
-const codigoPatrao = 'ADM01';
+const employeeCodes = [];
+for(let i=1;i<=100;i++){ employeeCodes.push('RB'+String(i).padStart(2,'0')); }
+const bossCode = 'ADM01';
+
+// Variáveis para confirmação dupla
+let confirmDeleteUser = false;
+let confirmDeleteAll = false;
 
 // Login
-function login(){
-    const codigo = document.getElementById('codigo').value.toUpperCase();
-    const nome = document.getElementById('nome').value || '';
-    const loginMsg = document.getElementById('loginMsg');
+function login() {
+    const code = document.getElementById('userCode').value.toUpperCase();
+    const name = document.getElementById('userName').value || code;
 
-    if(codigosFuncionarios.includes(codigo)){
-        document.getElementById('funcNome').innerText = nome || codigo;
-        document.getElementById('loginCard').style.display = 'none';
-        document.getElementById('funcCard').style.display = 'block';
-        loginMsg.innerText = '';
-    } else if(codigo === codigoPatrao){
-        document.getElementById('loginCard').style.display = 'none';
-        document.getElementById('bossCard').style.display = 'block';
-        loginMsg.innerText = '';
-    } else{
-        loginMsg.innerText = 'Código inválido!';
+    if(code === bossCode){
+        document.getElementById('loginCard').style.display='none';
+        document.getElementById('bossCard').style.display='block';
+    } else if(employeeCodes.includes(code)){
+        document.getElementById('loginCard').style.display='none';
+        document.getElementById('funcCard').style.display='block';
+        document.getElementById('funcNameDisplay').innerText = name;
+        displayUserRecords();
+    } else {
+        document.getElementById('loginMsg').innerText = 'Código inválido!';
     }
 }
 
 // Salvar registro do funcionário
-function salvarRegistro(){
-    const codigo = document.getElementById('codigo').value.toUpperCase();
-    const registro = {
-        data: new Date().toLocaleString(),
-        entrada: document.getElementById('entrada').value,
-        saidaAlmoco: document.getElementById('saidaAlmoco').value,
-        retornoAlmoco: document.getElementById('retornoAlmoco').value,
-        saidaTrabalho: document.getElementById('saidaTrabalho').value,
-        horasExtras: document.getElementById('horasExtras').value
-    };
-    let registros = JSON.parse(localStorage.getItem(codigo)) || [];
-    registros.push(registro);
-    localStorage.setItem(codigo, JSON.stringify(registros));
-    alert('Registro salvo com sucesso!');
-    mostrarTodosRegistros();
+function saveRecord(){
+    const code = document.getElementById('userCode').value.toUpperCase();
+    const name = document.getElementById('userName').value || code;
+    const entrada = document.getElementById('entrada').value;
+    const saidaAlmoco = document.getElementById('saidaAlmoco').value;
+    const retornoAlmoco = document.getElementById('retornoAlmoco').value;
+    const saida = document.getElementById('saida').value;
+    const horaExtra = document.getElementById('horaExtra').value;
+
+    if(!entrada || !saidaAlmoco || !retornoAlmoco || !saida){
+        alert('Preencha todos os horários obrigatórios!');
+        return;
+    }
+
+    const record = { name, entrada, saidaAlmoco, retornoAlmoco, saida, horaExtra, date: new Date().toLocaleString() };
+    let records = JSON.parse(localStorage.getItem(code)) || [];
+    records.push(record);
+    localStorage.setItem(code, JSON.stringify(records));
+    displayUserRecords();
 }
 
-// Mostrar registros do funcionário logado
-function mostrarTodosRegistros(){
-    const codigo = document.getElementById('codigo').value.toUpperCase();
-    const registros = JSON.parse(localStorage.getItem(codigo)) || [];
-    let html = '<table><tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th></tr>';
-    registros.forEach(r=>{
-        html += `<tr>
-        <td>${r.data}</td>
-        <td>${r.entrada}</td>
-        <td>${r.saidaAlmoco}</td>
-        <td>${r.retornoAlmoco}</td>
-        <td>${r.saidaTrabalho}</td>
-        <td>${r.horasExtras}</td>
-        </tr>`;
+// Mostrar registros do usuário
+function displayUserRecords(){
+    const code = document.getElementById('userCode').value.toUpperCase();
+    let records = JSON.parse(localStorage.getItem(code)) || [];
+    let html = '<table><tr><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th><th>Data</th></tr>';
+    records.forEach(r => {
+        html += `<tr><td>${r.entrada}</td><td>${r.saidaAlmoco}</td><td>${r.retornoAlmoco}</td><td>${r.saida}</td><td>${r.horaExtra}</td><td>${r.date}</td></tr>`;
     });
     html += '</table>';
-    document.getElementById('registrosFuncionario').innerHTML = html;
+    document.getElementById('userRecords').innerHTML = html;
 }
 
-// Mostrar todos os registros para o patrão
-function mostrarTodosFuncionarios(){
-    let html = '';
-    codigosFuncionarios.forEach(codigo=>{
-        const registros = JSON.parse(localStorage.getItem(codigo)) || [];
-        if(registros.length > 0){
-            html += `<h4>${codigo}</h4><table><tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th></tr>`;
-            registros.forEach(r=>{
-                html += `<tr>
-                <td>${r.data}</td>
-                <td>${r.entrada}</td>
-                <td>${r.saidaAlmoco}</td>
-                <td>${r.retornoAlmoco}</td>
-                <td>${r.saidaTrabalho}</td>
-                <td>${r.horasExtras}</td>
-                </tr>`;
+// Confirmação dupla apagar registros do funcionário
+function deleteUserRecords(){
+    if(!confirmDeleteUser){
+        confirmDeleteUser = true;
+        document.getElementById('deleteRecordsBtn').innerText = 'Clique novamente para confirmar';
+    } else {
+        const code = document.getElementById('userCode').value.toUpperCase();
+        localStorage.removeItem(code);
+        displayUserRecords();
+        confirmDeleteUser = false;
+        document.getElementById('deleteRecordsBtn').innerText = 'Apagar Todos Meus Registros';
+        alert('Seus registros foram apagados. Patrão ainda pode ver registros antigos.');
+    }
+}
+
+// Área do patrão: ver todos os registros
+function viewAllEmployeeRecords(){
+    let html = '<h4>Todos os Registros:</h4>';
+    employeeCodes.forEach(code => {
+        let records = JSON.parse(localStorage.getItem(code)) || [];
+        if(records.length > 0){
+            html += `<h5>${code}</h5><table><tr><th>Nome</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th><th>Data</th></tr>`;
+            records.forEach(r=>{
+                html += `<tr><td>${r.name}</td><td>${r.entrada}</td><td>${r.saidaAlmoco}</td><td>${r.retornoAlmoco}</td><td>${r.saida}</td><td>${r.horaExtra}</td><td>${r.date}</td></tr>`;
             });
             html += '</table>';
         }
     });
-    document.getElementById('registrosTodos').innerHTML = html || 'Nenhum registro encontrado.';
+    document.getElementById('allRecords').innerHTML = html;
+}
+
+// Confirmação dupla apagar todos os registros (patrão)
+function deleteAllRecords(){
+    if(!confirmDeleteAll){
+        confirmDeleteAll = true;
+        document.getElementById('deleteAllBtn').innerText = 'Clique novamente para confirmar';
+    } else {
+        employeeCodes.forEach(code => localStorage.removeItem(code));
+        confirmDeleteAll = false;
+        document.getElementById('deleteAllBtn').innerText = 'Apagar Todos os Registros de Todos';
+        document.getElementById('allRecords').innerHTML = '';
+        alert('Todos os registros de todos os funcionários foram apagados.');
+    }
 }
 </script>
 
 </body>
-  </html>
+    </html>
