@@ -3,90 +3,134 @@
 <head>
 <meta charset="UTF-8">
 <title>RB Refrigeração Beberibe</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  background: #f2f2f2;
-}
-
-header {
-  background: #0b5ed7;
-  color: white;
-  padding: 20px;
-  text-align: center;
-}
-
-section {
-  padding: 20px;
-}
-
-.card {
-  background: white;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  margin-bottom: 20px;
-}
-
-input, button {
-  width: 100%;
-  padding: 10px;
-  margin-top: 10px;
-}
-
-button {
-  background: #0b5ed7;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  font-size: 16px;
-}
+  body {
+    font-family: Arial, sans-serif;
+    background: #f2f2f2;
+    margin: 0;
+    padding: 0;
+  }
+  header {
+    background: #0b5ed7;
+    color: white;
+    padding: 20px;
+    text-align: center;
+  }
+  section {
+    padding: 20px;
+  }
+  .card {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+  }
+  input, button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    font-size: 16px;
+  }
+  button {
+    background: #0b5ed7;
+    color: white;
+    border: none;
+    border-radius: 5px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: center;
+  }
+  th {
+    background: #0b5ed7;
+    color: white;
+  }
 </style>
 </head>
-
 <body>
 
 <header>
   <h1>RB Refrigeração Beberibe</h1>
-  <p>Área do Funcionário</p>
+  <p>Área de Funcionários</p>
 </header>
 
-<section class="card">
+<section id="loginCard" class="card">
   <h3>Login</h3>
-  <input id="id" placeholder="ID do funcionário (ex: RB01)">
-  <button onclick="entrar()">Entrar</button>
+  <input type="text" id="userId" placeholder="Digite seu ID (ex: RB01)">
+  <button onclick="login()">Entrar</button>
 </section>
 
-<section class="card" id="painel" style="display:none">
-  <h3>Ponto Eletrônico</h3>
+<section id="funcionarioCard" class="card" style="display:none">
+  <h3>Bem-vindo <span id="funcName"></span></h3>
   <button onclick="registrar('Entrada')">Entrada</button>
   <button onclick="registrar('Saída Almoço')">Saída Almoço</button>
   <button onclick="registrar('Volta Almoço')">Volta Almoço</button>
   <button onclick="registrar('Saída')">Saída</button>
-  <p id="log"></p>
+  <p id="logFunc"></p>
+</section>
+
+<section id="patraoCard" class="card" style="display:none">
+  <h3>Área do Patrão</h3>
+  <table id="registroTable">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Registro</th>
+        <th>Horário</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 </section>
 
 <script>
-let funcionario = "";
+  const idsFuncionarios = ["RB01","RB02","RB03","RB04","RB05","RB06","RB07","RB08","RB09","RB10"];
+  const idPatrao = "ADMIN01";
+  let usuarioAtual = "";
 
-function entrar() {
-  const id = document.getElementById("id").value;
-  if (id.startsWith("RB")) {
-    funcionario = id;
-    document.querySelector(".card").style.display = "none";
-    document.getElementById("painel").style.display = "block";
-  } else {
-    alert("ID inválido");
+  function login() {
+    const id = document.getElementById("userId").value.toUpperCase();
+    usuarioAtual = id;
+    document.getElementById("userId").value = "";
+    if(idPatrao === id) {
+      document.getElementById("loginCard").style.display = "none";
+      document.getElementById("patraoCard").style.display = "block";
+      atualizarTabela();
+    } else if(idsFuncionarios.includes(id)) {
+      document.getElementById("loginCard").style.display = "none";
+      document.getElementById("funcionarioCard").style.display = "block";
+      document.getElementById("funcName").innerText = id;
+    } else {
+      alert("ID inválido!");
+    }
   }
-}
 
-function registrar(tipo) {
-  const hora = new Date().toLocaleTimeString();
-  document.getElementById("log").innerHTML += `<br>${funcionario} - ${tipo}: ${hora}`;
-}
+  const registros = [];
+
+  function registrar(tipo) {
+    const agora = new Date().toLocaleTimeString();
+    registros.push({id: usuarioAtual, tipo, hora: agora});
+    document.getElementById("logFunc").innerHTML = `Último registro: ${tipo} às ${agora}`;
+    atualizarTabela();
+  }
+
+  function atualizarTabela() {
+    const tabela = document.querySelector("#registroTable tbody");
+    tabela.innerHTML = "";
+    registros.forEach(r => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${r.id}</td><td>${r.tipo}</td><td>${r.hora}</td>`;
+      tabela.appendChild(tr);
+    });
+  }
 </script>
 
 </body>
