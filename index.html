@@ -5,133 +5,166 @@
 <title>RB Refrigeração Beberibe</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #f2f2f2;
-    margin: 0;
-    padding: 0;
-  }
-  header {
-    background: #0b5ed7;
-    color: white;
-    padding: 20px;
-    text-align: center;
-  }
-  section {
-    padding: 20px;
-  }
-  .card {
-    background: white;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-  }
-  input, button {
-    width: 100%;
-    padding: 10px;
-    margin-top: 10px;
-    font-size: 16px;
-  }
-  button {
-    background: #0b5ed7;
-    color: white;
-    border: none;
-    border-radius: 5px;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-  }
-  th, td {
-    border: 1px solid #ccc;
-    padding: 8px;
-    text-align: center;
-  }
-  th {
-    background: #0b5ed7;
-    color: white;
-  }
+/* ===== Estilo Geral ===== */
+body { font-family: Arial, sans-serif; background: #f0f2f5; margin:0; padding:0; }
+header { background: #0b5ed7; color: white; padding: 20px; text-align:center; }
+section { padding: 20px; }
+.card { background: white; padding:20px; border-radius:8px; box-shadow:0 0 15px rgba(0,0,0,0.2); margin-bottom:20px; }
+input, button { width:100%; padding:12px; margin-top:10px; font-size:16px; }
+button { background:#0b5ed7; color:white; border:none; border-radius:5px; cursor:pointer; }
+button:hover { opacity:0.9; }
+table { width:100%; border-collapse: collapse; margin-top:10px; font-size:14px; }
+th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+th { background:#0b5ed7; color:white; }
+td.entrada { background: #d4edda; }
+td.saida { background: #f8d7da; }
+td.almoco { background: #fff3cd; }
+td.horaExtra { background: #ffeeba; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>RB Refrigeração Beberibe</h1>
-  <p>Área de Funcionários</p>
+<h1>RB Refrigeração Beberibe</h1>
+<p>Controle de Funcionários – Sistema Automático</p>
 </header>
 
+<!-- LOGIN -->
 <section id="loginCard" class="card">
-  <h3>Login</h3>
-  <input type="text" id="userId" placeholder="Digite seu ID (ex: RB01)">
-  <button onclick="login()">Entrar</button>
+<h3>Login</h3>
+<input type="text" id="userId" placeholder="Digite seu ID (ex: RB01)">
+<button onclick="login()">Entrar</button>
 </section>
 
-<section id="funcionarioCard" class="card" style="display:none">
-  <h3>Bem-vindo <span id="funcName"></span></h3>
-  <button onclick="registrar('Entrada')">Entrada</button>
-  <button onclick="registrar('Saída Almoço')">Saída Almoço</button>
-  <button onclick="registrar('Volta Almoço')">Volta Almoço</button>
-  <button onclick="registrar('Saída')">Saída</button>
-  <p id="logFunc"></p>
+<!-- ÁREA DO FUNCIONÁRIO -->
+<section id="funcCard" class="card" style="display:none">
+<h3>Bem-vindo <span id="funcName"></span></h3>
+<p>Seu expediente será registrado automaticamente:</p>
+<button onclick="iniciarExpediente()">Iniciar Expediente</button>
+<p id="status"></p>
+<button onclick="salvar()">Salvar Trabalho</button>
 </section>
 
-<section id="patraoCard" class="card" style="display:none">
-  <h3>Área do Patrão</h3>
-  <table id="registroTable">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Registro</th>
-        <th>Horário</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+<!-- ÁREA DO PATRÃO -->
+<section id="bossCard" class="card" style="display:none">
+<h3>Área do Patrão</h3>
+<p>Registros mensais detalhados de todos os funcionários:</p>
+<table id="registrosTable">
+<thead>
+<tr>
+<th>Funcionário</th>
+<th>Tipo de Registro</th>
+<th>Horário</th>
+<th>Data</th>
+<th>Total Diário</th>
+<th>Hora Extra</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+<button onclick="salvar()">Salvar Todos</button>
 </section>
 
 <script>
-  const idsFuncionarios = ["RB01","RB02","RB03","RB04","RB05","RB06","RB07","RB08","RB09","RB10"];
-  const idPatrao = "ADMIN01";
-  let usuarioAtual = "";
+// ===== IDS =====
+const idsFuncionarios = ["RB01","RB02","RB03","RB04","RB05","RB06","RB07","RB08","RB09","RB10"];
+const idPatrao = "ADMIN01";
 
-  function login() {
-    const id = document.getElementById("userId").value.toUpperCase();
-    usuarioAtual = id;
-    document.getElementById("userId").value = "";
-    if(idPatrao === id) {
-      document.getElementById("loginCard").style.display = "none";
-      document.getElementById("patraoCard").style.display = "block";
-      atualizarTabela();
-    } else if(idsFuncionarios.includes(id)) {
-      document.getElementById("loginCard").style.display = "none";
-      document.getElementById("funcionarioCard").style.display = "block";
-      document.getElementById("funcName").innerText = id;
-    } else {
-      alert("ID inválido!");
+// ===== VARIÁVEIS =====
+let usuarioAtual = "";
+let registros = {}; // Armazena todos os registros por funcionário
+
+// ===== FUNÇÃO LOGIN =====
+function login(){
+  const id = document.getElementById("userId").value.toUpperCase();
+  usuarioAtual = id;
+  document.getElementById("userId").value = "";
+  
+  if(idPatrao === id){
+    document.getElementById("loginCard").style.display = "none";
+    document.getElementById("bossCard").style.display = "block";
+    atualizarTabela();
+  } else if(idsFuncionarios.includes(id)){
+    document.getElementById("loginCard").style.display = "none";
+    document.getElementById("funcCard").style.display = "block";
+    document.getElementById("funcName").innerText = id;
+    if(!registros[id]) registros[id] = [];
+  } else {
+    alert("ID inválido!");
+  }
+}
+
+// ===== INICIAR EXPEDIENTE AUTOMÁTICO =====
+function iniciarExpediente(){
+  const agora = new Date();
+  const dataHoje = agora.toISOString().split('T')[0]; // yyyy-mm-dd
+  
+  if(!registros[usuarioAtual]) registros[usuarioAtual] = [];
+  
+  // Entrada
+  registros[usuarioAtual].push({tipo:"Entrada", hora:agora.toLocaleTimeString(), data:dataHoje});
+  // Almoço (4h30 depois do início)
+  registros[usuarioAtual].push({tipo:"Saída Almoço", hora:new Date(agora.getTime() + 4.5*3600000).toLocaleTimeString(), data:dataHoje});
+  // Volta Almoço (1h de almoço)
+  registros[usuarioAtual].push({tipo:"Volta Almoço", hora:new Date(agora.getTime() + 5.5*3600000).toLocaleTimeString(), data:dataHoje});
+  // Saída Final (8h de expediente)
+  registros[usuarioAtual].push({tipo:"Saída", hora:new Date(agora.getTime() + 9*3600000).toLocaleTimeString(), data:dataHoje});
+  
+  document.getElementById("status").innerHTML = "Expediente iniciado automaticamente e registros gerados!";
+  
+  atualizarTabela();
+}
+
+// ===== FUNÇÃO ATUALIZAR TABELA =====
+function atualizarTabela(){
+  const tabela = document.querySelector("#registrosTable tbody");
+  tabela.innerHTML = "";
+  
+  for(const user in registros){
+    // Agrupar registros por data
+    const dias = {};
+    registros[user].forEach(r=>{
+      if(!dias[r.data]) dias[r.data] = [];
+      dias[r.data].push(r);
+    });
+    
+    for(const dia in dias){
+      let totalDiario = 0;
+      dias[dia].forEach((r,i)=>{
+        if(r.tipo === "Entrada"){
+          const entrada = new Date(dia+"T"+r.hora);
+          const saidaFinal = new Date(dia+"T"+dias[dia].find(x=>x.tipo==="Saída").hora);
+          totalDiario = (saidaFinal - entrada)/3600000;
+        }
+      });
+      
+      dias[dia].forEach(r=>{
+        const tr = document.createElement("tr");
+        let tdClass = "";
+        if(r.tipo==="Entrada") tdClass="entrada";
+        if(r.tipo==="Saída") tdClass="saida";
+        if(r.tipo==="Saída Almoço" || r.tipo==="Volta Almoço") tdClass="almoco";
+        let horaExtra = totalDiario>8 ? (totalDiario-8).toFixed(2)+"h" : "0h";
+        tr.innerHTML = `<td>${user}</td><td class="${tdClass}">${r.tipo}</td><td>${r.hora}</td><td>${r.data}</td><td>${totalDiario.toFixed(2)}h</td><td class="horaExtra">${horaExtra}</td>`;
+        tabela.appendChild(tr);
+      });
     }
   }
+}
 
-  const registros = [];
+// ===== FUNÇÃO SALVAR =====
+function salvar(){
+  localStorage.setItem("registrosRB", JSON.stringify(registros));
+  alert("Registros salvos com sucesso!");
+}
 
-  function registrar(tipo) {
-    const agora = new Date().toLocaleTimeString();
-    registros.push({id: usuarioAtual, tipo, hora: agora});
-    document.getElementById("logFunc").innerHTML = `Último registro: ${tipo} às ${agora}`;
-    atualizarTabela();
-  }
-
-  function atualizarTabela() {
-    const tabela = document.querySelector("#registroTable tbody");
-    tabela.innerHTML = "";
-    registros.forEach(r => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${r.id}</td><td>${r.tipo}</td><td>${r.hora}</td>`;
-      tabela.appendChild(tr);
-    });
-  }
+// ===== CARREGAR REGISTROS =====
+window.onload = function(){
+  const dados = localStorage.getItem("registrosRB");
+  if(dados) registros = JSON.parse(dados);
+  atualizarTabela();
+}
 </script>
 
 </body>
-</html>
+  </html>
