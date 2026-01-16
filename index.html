@@ -31,24 +31,27 @@ td.horaExtra { background: #ffeeba; }
 <!-- LOGIN -->
 <section id="loginCard" class="card">
 <h3>Login</h3>
-<input type="text" id="codigo" placeholder="Digite seu Código (ex: RB01 ou ADM01)">
-<input type="text" id="nomeOpcional" placeholder="Digite seu Nome (opcional para funcionários)">
+<input type="text" id="userCode" placeholder="Digite seu código (ex: RB01 ou ADM01)">
+<input type="text" id="userName" placeholder="Digite seu nome opcional">
 <button onclick="login()">Entrar</button>
-<p id="loginMsg"></p>
+<p id="loginMsg" style="color:red;"></p>
 </section>
 
 <!-- ÁREA DO FUNCIONÁRIO -->
 <section id="funcCard" class="card" style="display:none">
-<h3>Bem-vindo <span id="funcNome"></span></h3>
-<p>Registre seu expediente:</p>
-<table>
+<h3>Bem-vindo <span id="funcName"></span></h3>
+<button onclick="verRegistrosFuncionario()">Ver Todos os Seus Registros</button>
+<table id="horariosTable">
+<thead>
 <tr>
 <th>Entrada</th>
 <th>Saída Almoço</th>
 <th>Retorno Almoço</th>
 <th>Saída Trabalho</th>
-<th>Horas Extras</th>
+<th>Hora Extra</th>
 </tr>
+</thead>
+<tbody>
 <tr>
 <td><input type="time" id="entrada"></td>
 <td><input type="time" id="saidaAlmoco"></td>
@@ -56,14 +59,11 @@ td.horaExtra { background: #ffeeba; }
 <td><input type="time" id="saidaTrabalho"></td>
 <td><input type="time" id="horaExtra"></td>
 </tr>
+</tbody>
 </table>
 <button onclick="salvarRegistro()">Salvar Registro</button>
-<button onclick="apagarRegistrosFuncionario()">Apagar Todos os Meus Registros</button>
-
 <h4>Seus registros:</h4>
-<table id="tabelaRegistrosFuncionario">
-<tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th></tr>
-</table>
+<div id="registrosFuncionario"></div>
 </section>
 
 <!-- ÁREA DO PATRÃO -->
@@ -71,165 +71,171 @@ td.horaExtra { background: #ffeeba; }
 <h3>Área do Patrão</h3>
 <button onclick="verTodosRegistros()">Ver Todos os Registros de Funcionários</button>
 <button onclick="apagarTodosRegistros()">Apagar Todos os Registros de Todos</button>
+<button onclick="resetNomes()">Resetar Nome Opcional</button>
+<h4>Todos os Registros:</h4>
 <div id="todosRegistros"></div>
 </section>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js"></script>
 <script>
-const firebaseConfig = {
-    apiKey: "SUA_API_KEY",
-    authDomain: "SEU_AUTH_DOMAIN",
-    projectId: "SEU_PROJECT_ID",
-};
-const app = firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+// ==== CONFIGURAÇÃO ====
+const codigosValidos = [];
+for (let i=1; i<=100; i++) {
+    codigosValidos.push("RB"+i.toString().padStart(2,'0'));
+}
+const codigoPatrao = "ADM01";
 
-let usuarioAtual = "";
-let nomeAtual = "";
+// ==== ARMAZENAMENTO ====
+let registros = JSON.parse(localStorage.getItem("registros")) || {};
+let nomesFixos = JSON.parse(localStorage.getItem("nomesFixos")) || {};
 
-// LOGIN
-async function login() {
-    const codigo = document.getElementById("codigo").value.trim();
-    const nome = document.getElementById("nomeOpcional").value.trim();
-    const msg = document.getElementById("loginMsg");
-    if (!codigo) return msg.innerText = "Digite o código!";
+// ==== LOGIN ====
+function login(){
+    const code = document.getElementById("userCode").value.trim().toUpperCase();
+    const name = document.getElementById("userName").value.trim();
+    const loginMsg = document.getElementById("loginMsg");
+    loginMsg.textContent = "";
 
-    // Patrão
-    if (codigo === "ADM01") {
-        usuarioAtual = "ADM01";
-        nomeAtual = "ADM";
-        document.getElementById("loginCard").style.display = "none";
-        document.getElementById("bossCard").style.display = "block";
-        return;
-    }
-
-    // Funcionário RB01–RB100
-    const validCodes = Array.from({length:100}, (_,i)=> "RB" + String(i+1).padStart(2,"0"));
-    if (!validCodes.includes(codigo)) return msg.innerText = "Código inválido!";
-
-    const docRef = db.collection("funcionarios").doc(codigo);
-    const docSnap = await docRef.get();
-    
-    // Primeiro login -> salva nome
-    if (!docSnap.exists || !docSnap.data().nome) {
-        if (!nome) return msg.innerText = "Digite um nome opcional para registrar!";
-        await docRef.set({nome: nome, registros: []}, {merge:true});
-        nomeAtual = nome;
+    if(code === codigoPatrao){
+        // Patrão
+        showBoss();
+    } else if(codigosValidos.includes(code)){
+        // Funcionário
+        // Verifica nome opcional fixo
+        if(nomesFixos[code]){
+            if(name !== nomesFixos[code]){
+                loginMsg.textContent = "Erro: Nome incorreto. Deve ser o nome fixo definido anteriormente.";
+                return;
+            }
+        } else {
+            if(!name){
+                loginMsg.textContent = "Você precisa definir um nome opcional.";
+                return;
+            }
+            nomesFixos[code] = name;
+            localStorage.setItem("nomesFixos", JSON.stringify(nomesFixos));
+        }
+        showFuncionario(code, name);
     } else {
-        const nomeSalvo = docSnap.data().nome;
-        if (!nome || nome !== nomeSalvo) return msg.innerText = "Nome não corresponde ao registrado!";
-        nomeAtual = nomeSalvo;
+        loginMsg.textContent = "Código inválido.";
     }
-
-    usuarioAtual = codigo;
-    document.getElementById("loginCard").style.display = "none";
-    document.getElementById("funcCard").style.display = "block";
-    document.getElementById("funcNome").innerText = nomeAtual;
-    carregarRegistrosFuncionario();
 }
 
-// SALVAR REGISTRO
-async function salvarRegistro() {
+// ==== MOSTRAR FUNCIONÁRIO ====
+let usuarioAtual = "";
+function showFuncionario(code, name){
+    usuarioAtual = code;
+    document.getElementById("loginCard").style.display="none";
+    document.getElementById("funcCard").style.display="block";
+    document.getElementById("funcName").textContent = name;
+    atualizarRegistrosFuncionario();
+}
+
+// ==== SALVAR REGISTRO ====
+function salvarRegistro(){
     const entrada = document.getElementById("entrada").value;
     const saidaAlmoco = document.getElementById("saidaAlmoco").value;
     const retornoAlmoco = document.getElementById("retornoAlmoco").value;
     const saidaTrabalho = document.getElementById("saidaTrabalho").value;
     const horaExtra = document.getElementById("horaExtra").value;
-    if (!entrada || !saidaAlmoco || !retornoAlmoco || !saidaTrabalho) return alert("Preencha todos os horários!");
 
-    const docRef = db.collection("funcionarios").doc(usuarioAtual);
-    const docSnap = await docRef.get();
-    let registros = docSnap.data().registros || [];
-    const dataAtual = new Date().toLocaleString("pt-BR");
-    registros.push({data:dataAtual, entrada, saidaAlmoco, retornoAlmoco, saidaTrabalho, horaExtra});
-    await docRef.update({registros});
-    alert("Registro salvo!");
-    carregarRegistrosFuncionario();
-}
+    if(!registros[usuarioAtual]){
+        registros[usuarioAtual] = [];
+    }
 
-// CARREGAR REGISTROS DO FUNCIONÁRIO
-async function carregarRegistrosFuncionario() {
-    const docSnap = await db.collection("funcionarios").doc(usuarioAtual).get();
-    const registros = docSnap.data().registros || [];
-    const tabela = document.getElementById("tabelaRegistrosFuncionario");
-    tabela.innerHTML = "<tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th></tr>";
-    registros.forEach(r => {
-        const row = `<tr><td>${r.data}</td><td>${r.entrada}</td><td>${r.saidaAlmoco}</td><td>${r.retornoAlmoco}</td><td>${r.saidaTrabalho}</td><td>${r.horaExtra}</td></tr>`;
-        tabela.innerHTML += row;
-    });
-}
-
-// APAGAR REGISTROS DO FUNCIONÁRIO
-async function apagarRegistrosFuncionario() {
-    if(!confirm("Deseja apagar todos os seus registros?")) return;
-    await db.collection("funcionarios").doc(usuarioAtual).update({registros: []});
-    carregarRegistrosFuncionario();
-    alert("Todos os seus registros foram apagados!");
-}
-
-// ÁREA DO PATRÃO - VER TODOS REGISTROS
-async function verTodosRegistros() {
-    const col = await db.collection("funcionarios").get();
-    const div = document.getElementById("todosRegistros");
-    div.innerHTML = "";
-    col.forEach(doc => {
-        const data = doc.data();
-        if(data.registros && data.registros.length > 0){
-            let tabela = `<h4>${data.nome}</h4><table><tr><th>Nome</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th></tr>`;
-            data.registros.forEach(r => {
-                tabela += `<tr><td>${data.nome}</td><td>${r.entrada}</td><td>${r.saidaAlmoco}</td><td>${r.retornoAlmoco}</td><td>${r.saidaTrabalho}</td><td>${r.horaExtra}</td></tr>`;
-            });
-            tabela += "</table>";
-            div.innerHTML += tabela;
-        }
-    });
-}
-
-// PATRÃO - APAGAR TODOS REGISTROS
-async function apagarTodosRegistros() {
-    if(!confirm("Deseja apagar todos os registros de todos os funcionários?")) return;
-    const col = await db.collection("funcionarios").get();
-    col.forEach(doc => {
-        db.collection("funcionarios").doc(doc.id).update({registros: []});
-    });
-    document.getElementById("todosRegistros").innerHTML = "";
-    alert("Todos os registros de todos os funcionários foram apagados!");
-}
-
-// ===== Botão secreto temporário para resetar nome =====
-function criarBotaoResetNome() {
-    const btn = document.createElement("button");
-    btn.innerText = "Resetar Nome Temporário";
-    btn.style.position = "fixed";
-    btn.style.bottom = "10px";
-    btn.style.right = "10px";
-    btn.style.padding = "10px";
-    btn.style.background = "#dc3545";
-    btn.style.color = "white";
-    btn.style.border = "none";
-    btn.style.borderRadius = "5px";
-    btn.style.zIndex = "9999";
-    btn.style.cursor = "pointer";
-
-    btn.onclick = async function () {
-        const codigo = prompt("Digite o código que quer resetar (ex: RB01 ou ADM01):");
-        if (!codigo) return alert("Código inválido!");
-        try {
-            await db.collection("funcionarios").doc(codigo).update({ nome: "" });
-            alert("Nome resetado com sucesso! Agora é só entrar novamente e cadastrar o nome.");
-        } catch (err) {
-            console.error(err);
-            alert("Erro ao resetar o nome. Verifique se o código existe.");
-        }
+    const registro = {
+        data: new Date().toLocaleString(),
+        entrada, saidaAlmoco, retornoAlmoco, saidaTrabalho, horaExtra,
+        nome: nomesFixos[usuarioAtual]
     };
-
-    document.body.appendChild(btn);
+    registros[usuarioAtual].push(registro);
+    localStorage.setItem("registros", JSON.stringify(registros));
+    atualizarRegistrosFuncionario();
+    alert("Registro salvo!");
 }
 
-criarBotaoResetNome();
+// ==== ATUALIZAR REGISTROS FUNCIONÁRIO ====
+function atualizarRegistrosFuncionario(){
+    const div = document.getElementById("registrosFuncionario");
+    div.innerHTML = "";
+    if(!registros[usuarioAtual]) return;
+    let html = `<table><tr>
+    <th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Hora Extra</th></tr>`;
+    registros[usuarioAtual].forEach(r=>{
+        html+=`<tr>
+        <td>${r.data}</td>
+        <td>${r.entrada}</td>
+        <td>${r.saidaAlmoco}</td>
+        <td>${r.retornoAlmoco}</td>
+        <td>${r.saidaTrabalho}</td>
+        <td>${r.horaExtra}</td>
+        </tr>`;
+    });
+    html+="</table>";
+    div.innerHTML = html;
+}
 
+// ==== VER TODOS REGISTROS (PATRÃO) ====
+function showBoss(){
+    document.getElementById("loginCard").style.display="none";
+    document.getElementById("bossCard").style.display="block";
+}
+
+function verTodosRegistros(){
+    const div = document.getElementById("todosRegistros");
+    div.innerHTML="";
+    for(const code in registros){
+        const nome = nomesFixos[code] || code;
+        div.innerHTML += `<h4>${nome}</h4>`;
+        let html = `<table><tr>
+        <th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Hora Extra</th></tr>`;
+        registros[code].forEach(r=>{
+            html+=`<tr>
+            <td>${r.data}</td>
+            <td>${r.entrada}</td>
+            <td>${r.saidaAlmoco}</td>
+            <td>${r.retornoAlmoco}</td>
+            <td>${r.saidaTrabalho}</td>
+            <td>${r.horaExtra}</td>
+            </tr>`;
+        });
+        html+="</table>";
+        div.innerHTML += html;
+    }
+}
+
+// ==== APAGAR TODOS REGISTROS (PATRÃO) ====
+let confirmarApagar = false;
+function apagarTodosRegistros(){
+    if(!confirmarApagar){
+        alert("Clique novamente para confirmar apagar TODOS os registros!");
+        confirmarApagar = true;
+        setTimeout(()=>{confirmarApagar=false},5000);
+        return;
+    }
+    registros = {};
+    localStorage.setItem("registros", JSON.stringify(registros));
+    document.getElementById("todosRegistros").innerHTML="";
+    alert("Todos os registros apagados!");
+}
+
+// ==== RESET DE NOMES OPCIONAIS (PATRÃO) ====
+function resetNomes(){
+    const code = prompt("Digite o código do funcionário para resetar o nome opcional:");
+    if(!code) return;
+    if(!nomesFixos[code]){
+        alert("Código não possui nome definido.");
+        return;
+    }
+    delete nomesFixos[code];
+    localStorage.setItem("nomesFixos", JSON.stringify(nomesFixos));
+    alert("Nome opcional resetado. Funcionário poderá definir novo nome ao logar.");
+}
+
+// ==== VER REGISTROS DO FUNCIONÁRIO ====
+function verRegistrosFuncionario(){
+    atualizarRegistrosFuncionario();
+}
 </script>
+
 </body>
 </html>
