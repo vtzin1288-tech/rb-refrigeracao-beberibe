@@ -15,8 +15,10 @@ button:hover { opacity:0.9; }
 table { width:100%; border-collapse: collapse; margin-top:10px; font-size:14px; }
 th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 th { background:#0b5ed7; color:white; }
-#funcCard, #bossCard { display:none; }
-.top-button { float:right; margin-bottom:10px; width:auto; padding:8px 16px; margin-left:5px; }
+td.entrada { background: #d4edda; }
+td.saida { background: #f8d7da; }
+td.almoco { background: #fff3cd; }
+td.horaExtra { background: #ffeeba; }
 </style>
 </head>
 <body>
@@ -27,20 +29,18 @@ th { background:#0b5ed7; color:white; }
 </header>
 
 <!-- LOGIN -->
-<section class="card" id="loginCard">
+<section id="loginCard" class="card">
 <h3>Login</h3>
-<input type="text" id="userCode" placeholder="Digite seu código (ex: RB01 ou ADM01)">
-<input type="text" id="userName" placeholder="Digite seu nome (obrigatório para funcionários)">
+<input type="text" id="codigo" placeholder="Digite seu Código (ex: RB01 ou ADM01)">
+<input type="text" id="nomeOpcional" placeholder="Digite seu Nome (opcional para funcionários)">
 <button onclick="login()">Entrar</button>
-<p id="loginMsg" style="color:red;"></p>
+<p id="loginMsg"></p>
 </section>
 
 <!-- ÁREA DO FUNCIONÁRIO -->
-<section class="card" id="funcCard">
-<h3>Bem-vindo, <span id="funcNameDisplay"></span></h3>
-<button class="top-button" id="verRegistrosBtn" onclick="displayUserRecords()">Ver Todos os Registros</button>
-<button class="top-button" id="deleteRecordsBtn" onclick="deleteUserRecords()">Apagar Todos Meus Registros</button>
-
+<section id="funcCard" class="card" style="display:none">
+<h3>Bem-vindo <span id="funcNome"></span></h3>
+<p>Registre seu expediente:</p>
 <table>
 <tr>
 <th>Entrada</th>
@@ -53,263 +53,183 @@ th { background:#0b5ed7; color:white; }
 <td><input type="time" id="entrada"></td>
 <td><input type="time" id="saidaAlmoco"></td>
 <td><input type="time" id="retornoAlmoco"></td>
-<td><input type="time" id="saida"></td>
+<td><input type="time" id="saidaTrabalho"></td>
 <td><input type="time" id="horaExtra"></td>
 </tr>
 </table>
-<button onclick="saveRecord()">Salvar Registro</button>
-<div id="userRecords"></div>
+<button onclick="salvarRegistro()">Salvar Registro</button>
+<button onclick="apagarRegistrosFuncionario()">Apagar Todos os Meus Registros</button>
+
+<h4>Seus registros:</h4>
+<table id="tabelaRegistrosFuncionario">
+<tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th></tr>
+</table>
 </section>
 
 <!-- ÁREA DO PATRÃO -->
-<section class="card" id="bossCard">
+<section id="bossCard" class="card" style="display:none">
 <h3>Área do Patrão</h3>
-<button onclick="viewAllEmployeeRecords()">Ver Todos os Registros de Funcionários</button>
-<button id="deleteAllBtn" onclick="deleteAllRecords()">Apagar Todos os Registros de Todos</button>
-<div id="allRecords"></div>
+<button onclick="verTodosRegistros()">Ver Todos os Registros de Funcionários</button>
+<button onclick="apagarTodosRegistros()">Apagar Todos os Registros de Todos</button>
+<div id="todosRegistros"></div>
 </section>
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script>
-// ========== CONFIGURAÇÃO DO FIREBASE ==========
-const firebaseConfig = {
-  apiKey: "COLE_AQUI",
-  authDomain: "COLE_AQUI",
-  projectId: "COLE_AQUI",
-  storageBucket: "COLE_AQUI",
-  messagingSenderId: "COLE_AQUI",
-  appId: "COLE_AQUI"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
-// ========== CÓDIGOS VÁLIDOS ==========
-const employeeCodes = [];
-for(let i=1;i<=100;i++){ employeeCodes.push('RB'+String(i).padStart(2,'0')); }
-const bossCode = 'ADM01';
-
-// ========== VARIÁVEIS CONFIRMAÇÃO DUPLA ==========
-let confirmDeleteUser = false;
-let confirmDeleteAll = false;
-
-// ========== LOGIN ==========
-async function login(){
-    const code = document.getElementById('userCode').value.toUpperCase();
-    const nameInput = document.getElementById('userName').value.trim();
-    const loginMsg = document.getElementById('loginMsg');
-
-    if(code === bossCode){
-        document.getElementById('loginCard').style.display='none';
-        document.getElementById('bossCard').style.display='block';
-        loginMsg.innerText = '';
-        return;
-    } 
-
-    if(!employeeCodes.includes(code)){
-        loginMsg.innerText = 'Código inválido!';
-        return;
-    }
-
-    if(!nameInput){
-        loginMsg.innerText = 'O nome é obrigatório!';
-        return;
-    }
-
-    // Verificar se já existe nome registrado
-    const docRef = db.collection('funcionarios').doc(code);
-    const doc = await docRef.get();
-    if(doc.exists){
-        const storedName = doc.data().nome;
-        if(storedName !== nameInput){
-            loginMsg.innerText = 'Nome não corresponde ao registrado!';
-            return;
-        }
-    } else {
-        // Primeiro login: salva o nome
-        await docRef.set({nome: nameInput});
-    }
-
-    document.getElementById('loginCard').style.display='none';
-    document.getElementById('funcCard').style.display='block';
-    document.getElementById('funcNameDisplay').innerText = nameInput;
-    displayUserRecords();
-    loginMsg.innerText = '';
-}
-
-// ========== FUNCIONÁRIO: SALVAR REGISTRO ==========
-function saveRecord(){
-    const code = document.getElementById('userCode').value.toUpperCase();
-    const name = document.getElementById('userName').value;
-    const entrada = document.getElementById('entrada').value;
-    const saidaAlmoco = document.getElementById('saidaAlmoco').value;
-    const retornoAlmoco = document.getElementById('retornoAlmoco').value;
-    const saida = document.getElementById('saida').value;
-    const horaExtra = document.getElementById('horaExtra').value;
-
-    if(!entrada || !saidaAlmoco || !retornoAlmoco || !saida){
-        alert('Preencha todos os horários obrigatórios!');
-        return;
-    }
-
-    db.collection('funcionarios').doc(code).collection('registros').add({
-        nome: name,
-        entrada, saidaAlmoco, retornoAlmoco, saida, horaExtra,
-        data: new Date().toLocaleString()
-    }).then(()=>{
-        displayUserRecords();
-        alert('Registro salvo com sucesso!');
-    });
-}
-
-// ========== FUNCIONÁRIO: MOSTRAR REGISTROS ==========
-function displayUserRecords(){
-    const code = document.getElementById('userCode').value.toUpperCase();
-    const div = document.getElementById('userRecords');
-    div.innerHTML = '<p>Carregando registros...</p>';
-    db.collection('funcionarios').doc(code).collection('registros').orderBy('data','desc').get()
-    .then(snapshot=>{
-        if(snapshot.empty){
-            div.innerHTML = 'Nenhum registro encontrado.';
-            return;
-        }
-        let html = '<table><tr><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th><th>Data</th></tr>';
-        snapshot.forEach(doc=>{
-            const r = doc.data();
-            html += `<tr>
-            <td>${r.entrada}</td>
-            <td>${r.saidaAlmoco}</td>
-            <td>${r.retornoAlmoco}</td>
-            <td>${r.saida}</td>
-            <td>${r.horaExtra}</td>
-            <td>${r.data}</td>
-            </tr>`;
-        });
-        html += '</table>';
-        div.innerHTML = html;
-    });
-}
-
-// ========== FUNCIONÁRIO: APAGAR TODOS REGISTROS ==========
-function deleteUserRecords(){
-    if(!confirmDeleteUser){
-        confirmDeleteUser = true;
-        document.getElementById('deleteRecordsBtn').innerText = 'Clique novamente para confirmar';
-    } else {
-        const code = document.getElementById('userCode').value.toUpperCase();
-        db.collection('funcionarios').doc(code).collection('registros').get().then(snapshot=>{
-            snapshot.forEach(doc=> doc.ref.delete() );
-        }).then(()=>{
-            confirmDeleteUser = false;
-            document.getElementById('deleteRecordsBtn').innerText = 'Apagar Todos Meus Registros';
-            displayUserRecords();
-            alert('Seus registros foram apagados. Patrão ainda pode ver registros antigos.');
-        });
-    }
-}
-
-// ========== PATRÃO: VER TODOS OS REGISTROS ==========
-function viewAllEmployeeRecords(){
-    const div = document.getElementById('allRecords');
-    div.innerHTML = '<p>Carregando registros...</p>';
-    let html = '';
-    employeeCodes.forEach(code=>{
-        db.collection('funcionarios').doc(code).get().then(doc=>{
-            if(!doc.exists) return;
-            const storedName = doc.data().nome;
-            db.collection('funcionarios').doc(code).collection('registros').orderBy('data','desc').get().then(snapshot=>{
-                if(!snapshot.empty){
-                    html += `<h4>${storedName}</h4><table><tr><th>Nome</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th><th>Data</th></tr>`;
-                    snapshot.forEach(r=>{
-                        const rec = r.data();
-                        html += `<tr>
-                        <td>${rec.nome}</td>
-                        <td>${rec.entrada}</td>
-                        <td>${rec.saidaAlmoco}</td>
-                        <td>${rec.retornoAlmoco}</td>
-                        <td>${rec.saida}</td>
-                        <td>${rec.horaExtra}</td>
-                        <td>${rec.data}</td>
-                        </tr>`;
-                    });
-                    html += '</table>';
-                    div.innerHTML = html;
-                }
-            });
-        });
-    });
-}
-
-// ========== PATRÃO: APAGAR TODOS OS REGISTROS ==========
-function deleteAllRecords(){
-    if(!confirmDeleteAll){
-        confirmDeleteAll = true;
-        document.getElementById('deleteAllBtn').innerText = 'Clique novamente para confirmar';
-    } else {
-        employeeCodes.forEach(code=>{
-            db.collection('funcionarios').doc(code).collection('registros').get().then(snapshot=>{
-                snapshot.forEach(doc=> doc.ref.delete() );
-            });
-        });
-        confirmDeleteAll = false;
-        document.getElementById('deleteAllBtn').innerText = 'Apagar Todos os Registros de Todos';
-        document.getElementById('allRecords').innerHTML = '';
-        alert('Todos os registros de todos os funcionários foram apagados.');
-    }
-}
-</script>
-
-</body>
-    </html>
-<!-- Seu Firebase já inicializado -->
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js"></script>
-
 <script>
-  // Sua configuração do Firebase
-  const firebaseConfig = {
+const firebaseConfig = {
     apiKey: "SUA_API_KEY",
     authDomain: "SEU_AUTH_DOMAIN",
     projectId: "SEU_PROJECT_ID",
-    // ... restante da config
-  };
+};
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-  // Inicializando Firebase
-  const app = firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
+let usuarioAtual = "";
+let nomeAtual = "";
 
-  // ============================
-  // Coloque o código do botão RESET AQUI
-  function criarBotaoResetNome() {
-      const btn = document.createElement("button");
-      btn.innerText = "Resetar Nome Temporário";
-      btn.style.position = "fixed";
-      btn.style.bottom = "10px";
-      btn.style.right = "10px";
-      btn.style.padding = "10px";
-      btn.style.background = "#dc3545";
-      btn.style.color = "white";
-      btn.style.border = "none";
-      btn.style.borderRadius = "5px";
-      btn.style.zIndex = "9999";
-      btn.style.cursor = "pointer";
+// LOGIN
+async function login() {
+    const codigo = document.getElementById("codigo").value.trim();
+    const nome = document.getElementById("nomeOpcional").value.trim();
+    const msg = document.getElementById("loginMsg");
+    if (!codigo) return msg.innerText = "Digite o código!";
 
-      btn.onclick = async function () {
-          const codigo = prompt("Digite o código que quer resetar (ex: RB01 ou ADM01):");
-          if (!codigo) return alert("Código inválido!");
-          try {
-              await db.collection("funcionarios").doc(codigo).update({ nome: "" });
-              alert("Nome resetado com sucesso! Agora é só entrar novamente e cadastrar o nome.");
-          } catch (err) {
-              console.error(err);
-              alert("Erro ao resetar o nome. Verifique se o código existe.");
-          }
-      };
+    // Patrão
+    if (codigo === "ADM01") {
+        usuarioAtual = "ADM01";
+        nomeAtual = "ADM";
+        document.getElementById("loginCard").style.display = "none";
+        document.getElementById("bossCard").style.display = "block";
+        return;
+    }
 
-      document.body.appendChild(btn);
-  }
+    // Funcionário RB01–RB100
+    const validCodes = Array.from({length:100}, (_,i)=> "RB" + String(i+1).padStart(2,"0"));
+    if (!validCodes.includes(codigo)) return msg.innerText = "Código inválido!";
 
-  criarBotaoResetNome(); // cria o botão
-  // ============================
+    const docRef = db.collection("funcionarios").doc(codigo);
+    const docSnap = await docRef.get();
+    
+    // Primeiro login -> salva nome
+    if (!docSnap.exists || !docSnap.data().nome) {
+        if (!nome) return msg.innerText = "Digite um nome opcional para registrar!";
+        await docRef.set({nome: nome, registros: []}, {merge:true});
+        nomeAtual = nome;
+    } else {
+        const nomeSalvo = docSnap.data().nome;
+        if (!nome || nome !== nomeSalvo) return msg.innerText = "Nome não corresponde ao registrado!";
+        nomeAtual = nomeSalvo;
+    }
+
+    usuarioAtual = codigo;
+    document.getElementById("loginCard").style.display = "none";
+    document.getElementById("funcCard").style.display = "block";
+    document.getElementById("funcNome").innerText = nomeAtual;
+    carregarRegistrosFuncionario();
+}
+
+// SALVAR REGISTRO
+async function salvarRegistro() {
+    const entrada = document.getElementById("entrada").value;
+    const saidaAlmoco = document.getElementById("saidaAlmoco").value;
+    const retornoAlmoco = document.getElementById("retornoAlmoco").value;
+    const saidaTrabalho = document.getElementById("saidaTrabalho").value;
+    const horaExtra = document.getElementById("horaExtra").value;
+    if (!entrada || !saidaAlmoco || !retornoAlmoco || !saidaTrabalho) return alert("Preencha todos os horários!");
+
+    const docRef = db.collection("funcionarios").doc(usuarioAtual);
+    const docSnap = await docRef.get();
+    let registros = docSnap.data().registros || [];
+    const dataAtual = new Date().toLocaleString("pt-BR");
+    registros.push({data:dataAtual, entrada, saidaAlmoco, retornoAlmoco, saidaTrabalho, horaExtra});
+    await docRef.update({registros});
+    alert("Registro salvo!");
+    carregarRegistrosFuncionario();
+}
+
+// CARREGAR REGISTROS DO FUNCIONÁRIO
+async function carregarRegistrosFuncionario() {
+    const docSnap = await db.collection("funcionarios").doc(usuarioAtual).get();
+    const registros = docSnap.data().registros || [];
+    const tabela = document.getElementById("tabelaRegistrosFuncionario");
+    tabela.innerHTML = "<tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th></tr>";
+    registros.forEach(r => {
+        const row = `<tr><td>${r.data}</td><td>${r.entrada}</td><td>${r.saidaAlmoco}</td><td>${r.retornoAlmoco}</td><td>${r.saidaTrabalho}</td><td>${r.horaExtra}</td></tr>`;
+        tabela.innerHTML += row;
+    });
+}
+
+// APAGAR REGISTROS DO FUNCIONÁRIO
+async function apagarRegistrosFuncionario() {
+    if(!confirm("Deseja apagar todos os seus registros?")) return;
+    await db.collection("funcionarios").doc(usuarioAtual).update({registros: []});
+    carregarRegistrosFuncionario();
+    alert("Todos os seus registros foram apagados!");
+}
+
+// ÁREA DO PATRÃO - VER TODOS REGISTROS
+async function verTodosRegistros() {
+    const col = await db.collection("funcionarios").get();
+    const div = document.getElementById("todosRegistros");
+    div.innerHTML = "";
+    col.forEach(doc => {
+        const data = doc.data();
+        if(data.registros && data.registros.length > 0){
+            let tabela = `<h4>${data.nome}</h4><table><tr><th>Nome</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th></tr>`;
+            data.registros.forEach(r => {
+                tabela += `<tr><td>${data.nome}</td><td>${r.entrada}</td><td>${r.saidaAlmoco}</td><td>${r.retornoAlmoco}</td><td>${r.saidaTrabalho}</td><td>${r.horaExtra}</td></tr>`;
+            });
+            tabela += "</table>";
+            div.innerHTML += tabela;
+        }
+    });
+}
+
+// PATRÃO - APAGAR TODOS REGISTROS
+async function apagarTodosRegistros() {
+    if(!confirm("Deseja apagar todos os registros de todos os funcionários?")) return;
+    const col = await db.collection("funcionarios").get();
+    col.forEach(doc => {
+        db.collection("funcionarios").doc(doc.id).update({registros: []});
+    });
+    document.getElementById("todosRegistros").innerHTML = "";
+    alert("Todos os registros de todos os funcionários foram apagados!");
+}
+
+// ===== Botão secreto temporário para resetar nome =====
+function criarBotaoResetNome() {
+    const btn = document.createElement("button");
+    btn.innerText = "Resetar Nome Temporário";
+    btn.style.position = "fixed";
+    btn.style.bottom = "10px";
+    btn.style.right = "10px";
+    btn.style.padding = "10px";
+    btn.style.background = "#dc3545";
+    btn.style.color = "white";
+    btn.style.border = "none";
+    btn.style.borderRadius = "5px";
+    btn.style.zIndex = "9999";
+    btn.style.cursor = "pointer";
+
+    btn.onclick = async function () {
+        const codigo = prompt("Digite o código que quer resetar (ex: RB01 ou ADM01):");
+        if (!codigo) return alert("Código inválido!");
+        try {
+            await db.collection("funcionarios").doc(codigo).update({ nome: "" });
+            alert("Nome resetado com sucesso! Agora é só entrar novamente e cadastrar o nome.");
+        } catch (err) {
+            console.error(err);
+            alert("Erro ao resetar o nome. Verifique se o código existe.");
+        }
+    };
+
+    document.body.appendChild(btn);
+}
+
+criarBotaoResetNome();
+
 </script>
+</body>
+</html>
