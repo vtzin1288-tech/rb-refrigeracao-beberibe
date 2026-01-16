@@ -2,137 +2,229 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Refrigeração Berberib</title>
+<title>RB Refrigeração Beberibe</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
 <style>
-body { font-family: Arial; background:#f0f2f5; margin:0; padding:0 }
-.card { background:#fff; margin:20px; padding:20px; border-radius:8px }
-button, input { width:100%; padding:10px; margin-top:10px }
-button { background:#0b5ed7; color:#fff; border:none; cursor:pointer }
-table { width:100%; border-collapse:collapse; margin-top:10px }
-th,td { border:1px solid #ccc; padding:5px; text-align:center }
+body { font-family: Arial, sans-serif; background: #f0f2f5; margin:0; padding:0; }
+header { background: #0b5ed7; color: white; padding: 20px; text-align:center; }
+section { padding: 20px; }
+.card { background: white; padding:20px; border-radius:8px; box-shadow:0 0 15px rgba(0,0,0,0.2); margin-bottom:20px; }
+input, button { width:100%; padding:12px; margin-top:10px; font-size:16px; }
+button { background:#0b5ed7; color:white; border:none; border-radius:5px; cursor:pointer; }
+button:hover { opacity:0.9; }
+table { width:100%; border-collapse: collapse; margin-top:10px; font-size:14px; }
+th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+th { background:#0b5ed7; color:white; }
+td.entrada { background: #d4edda; }
+td.saida { background: #f8d7da; }
+td.almoco { background: #fff3cd; }
+td.horaExtra { background: #ffeeba; }
 </style>
 </head>
-
 <body>
 
-<div class="card" id="login">
+<header>
+<h1>RB Refrigeração Beberibe</h1>
+<p>Controle de Funcionários – Sistema Automático</p>
+</header>
+
+<!-- LOGIN -->
+<section id="loginCard" class="card">
 <h3>Login</h3>
-<input id="codigo" placeholder="Código (RB01 ou ADM01)">
-<input id="nome" placeholder="Nome (qualquer)">
+<input type="text" id="userCode" placeholder="Digite seu código (ex: RB01)">
+<input type="text" id="userName" placeholder="Digite seu nome (opcional)">
 <button onclick="login()">Entrar</button>
-</div>
+<p id="loginMsg" style="color:red;"></p>
+</section>
 
-<div class="card" id="func" style="display:none">
-<h3>Funcionário</h3>
-
-<input id="entrada" placeholder="Hora Entrada">
-<input id="almoco" placeholder="Hora Almoço">
-<input id="volta" placeholder="Volta Almoço">
-<input id="saida" placeholder="Saída">
-<input id="extra" placeholder="Hora Extra">
-
+<!-- FUNCIONÁRIO -->
+<section id="funcCard" class="card" style="display:none">
+<h3>Bem-vindo <span id="funcName"></span></h3>
+<table>
+<tr>
+<th>Tipo</th>
+<th>Horário</th>
+</tr>
+<tr><td>Entrada</td><td><input type="time" id="entrada"></td></tr>
+<tr><td>Saída Almoço</td><td><input type="time" id="saidaAlmoco"></td></tr>
+<tr><td>Retorno Almoço</td><td><input type="time" id="retornoAlmoco"></td></tr>
+<tr><td>Saída Trabalho</td><td><input type="time" id="saida"></td></tr>
+<tr><td>Horas Extras</td><td><input type="time" id="horaExtra"></td></tr>
+</table>
 <button onclick="salvarRegistro()">Salvar Registro</button>
-<button onclick="carregarMeus()">Ver Meus Registros</button>
-<button onclick="apagarMeus()">Apagar Meus Registros</button>
+<button onclick="verRegistros()">Ver Meus Registros</button>
+<div id="registrosFuncionario"></div>
+</section>
 
-<div id="meus"></div>
-</div>
-
-<div class="card" id="adm" style="display:none">
+<!-- PATRÃO -->
+<section id="bossCard" class="card" style="display:none">
 <h3>Área do Patrão</h3>
-<button onclick="carregarTodos()">Ver Todos Registros</button>
-<button onclick="apagarTudo()">Apagar TODOS Registros</button>
-<div id="todos"></div>
-</div>
+<button onclick="verTodosRegistros()">Ver Todos os Registros</button>
+<button onclick="apagarTodosRegistros()">Apagar Todos os Registros</button>
+<div id="registrosBoss"></div>
+</section>
 
-<script>
-// 🔥 CONFIG FIREBASE (SUBSTITUA)
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, set, get, child, push, remove } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+// === FIREBASE CONFIG ===
 const firebaseConfig = {
-  apiKey: "SUA_API_KEY",
-  authDomain: "SEU_DOMINIO",
-  databaseURL: "SUA_DATABASE_URL",
-  projectId: "SEU_PROJECT_ID",
+  apiKey: "AIzaSyDLZU1yl39VvEh6LCKbZC16-_pyRFXDpAk",
+  authDomain: "rbrefrigeracao-ec1d3.firebaseapp.com",
+  projectId: "rbrefrigeracao-ec1d3",
+  storageBucket: "rbrefrigeracao-ec1d3.firebasestorage.app",
+  messagingSenderId: "992612848477",
+  appId: "1:992612848477:web:a459b5c298a45653c50eb4",
+  measurementId: "G-G303RZ52WL"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
 
-let usuario = {};
+// Inicializa Firebase
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-function login(){
-  const c = codigo.value.toUpperCase();
-  if(c === "ADM01"){
-    usuario = { tipo:"adm" };
-    login.style.display="none";
-    adm.style.display="block";
-  } else if(/^RB\d{2,3}$/.test(c)){
-    usuario = { tipo:"func", codigo:c, nome:nome.value || "Sem nome" };
-    login.style.display="none";
-    func.style.display="block";
+// Logins válidos
+const funcionarios = Array.from({length:100},(_,i)=>`RB${String(i+1).padStart(2,'0')}`);
+const patrão = ["ADM01"];
+let currentUser = "";
+
+// === FUNÇÕES ===
+
+// LOGIN
+function login() {
+  const code = document.getElementById("userCode").value.toUpperCase();
+  const name = document.getElementById("userName").value.trim();
+  const msg = document.getElementById("loginMsg");
+
+  if(funcionarios.includes(code)) {
+    get(child(ref(db), `users/${code}/name`)).then(snapshot=>{
+      if(snapshot.exists()) {
+        const savedName = snapshot.val();
+        if(name && name !== savedName){
+          msg.textContent = "Você deve usar o nome já registrado!";
+          return;
+        }
+        showFuncionario(savedName);
+      } else {
+        if(!name){
+          msg.textContent = "Digite um nome para registrar!";
+          return;
+        }
+        set(ref(db, `users/${code}`), {name:name});
+        showFuncionario(name);
+      }
+    });
+  } else if(patrão.includes(code)){
+    get(child(ref(db), `users/${code}/name`)).then(snapshot=>{
+      if(snapshot.exists()) {
+        const savedName = snapshot.val();
+        if(name && name !== savedName){
+          msg.textContent = "Você deve usar o nome já registrado!";
+          return;
+        }
+        showBoss(savedName);
+      } else {
+        if(!name){
+          msg.textContent = "Digite um nome para registrar!";
+          return;
+        }
+        set(ref(db, `users/${code}`), {name:name});
+        showBoss(name);
+      }
+    });
   } else {
-    alert("Código inválido");
+    msg.textContent = "Código inválido!";
   }
 }
 
+// Mostra área do funcionário
+function showFuncionario(name){
+  currentUser = document.getElementById("userCode").value.toUpperCase();
+  document.getElementById("funcName").textContent = name;
+  document.getElementById("loginCard").style.display = "none";
+  document.getElementById("funcCard").style.display = "block";
+}
+
+// Mostra área do patrão
+function showBoss(name){
+  currentUser = document.getElementById("userCode").value.toUpperCase();
+  document.getElementById("loginCard").style.display = "none";
+  document.getElementById("bossCard").style.display = "block";
+}
+
+// Salvar registro do funcionário
 function salvarRegistro(){
-  const data = new Date().toLocaleDateString();
-  db.ref("registros").push({
-    codigo: usuario.codigo,
-    nome: usuario.nome,
-    data,
-    entrada: entrada.value,
-    almoco: almoco.value,
-    volta: volta.value,
-    saida: saida.value,
-    extra: extra.value
-  });
-  alert("Registro salvo!");
-}
-
-function carregarMeus(){
-  db.ref("registros").once("value", snap=>{
-    let html="<table><tr><th>Data</th><th>Entrada</th><th>Saída</th></tr>";
-    snap.forEach(r=>{
-      const d=r.val();
-      if(d.codigo===usuario.codigo){
-        html+=`<tr><td>${d.data}</td><td>${d.entrada}</td><td>${d.saida}</td></tr>`;
-      }
-    });
-    html+="</table>";
-    meus.innerHTML=html;
+  const registro = {
+    entrada: document.getElementById("entrada").value,
+    saidaAlmoco: document.getElementById("saidaAlmoco").value,
+    retornoAlmoco: document.getElementById("retornoAlmoco").value,
+    saida: document.getElementById("saida").value,
+    horaExtra: document.getElementById("horaExtra").value,
+    timestamp: Date.now()
+  };
+  push(ref(db, `registros/${currentUser}`), registro).then(()=>{
+    alert("Registro salvo!");
+    document.getElementById("entrada").value = "";
+    document.getElementById("saidaAlmoco").value = "";
+    document.getElementById("retornoAlmoco").value = "";
+    document.getElementById("saida").value = "";
+    document.getElementById("horaExtra").value = "";
   });
 }
 
-function carregarTodos(){
-  db.ref("registros").once("value", snap=>{
-    let html="<table><tr><th>Nome</th><th>Código</th><th>Data</th></tr>";
-    snap.forEach(r=>{
-      const d=r.val();
-      html+=`<tr><td>${d.nome}</td><td>${d.codigo}</td><td>${d.data}</td></tr>`;
-    });
-    html+="</table>";
-    todos.innerHTML=html;
+// Ver registros do funcionário
+function verRegistros(){
+  get(child(ref(db), `registros/${currentUser}`)).then(snapshot=>{
+    const container = document.getElementById("registrosFuncionario");
+    container.innerHTML = "";
+    if(snapshot.exists()){
+      snapshot.forEach(childSnap=>{
+        const r = childSnap.val();
+        container.innerHTML += `<p>Entrada: ${r.entrada}, Saída Almoço: ${r.saidaAlmoco}, Retorno: ${r.retornoAlmoco}, Saída: ${r.saida}, Horas Extras: ${r.horaExtra}</p>`;
+      });
+    } else {
+      container.innerHTML = "<p>Nenhum registro encontrado.</p>";
+    }
   });
 }
 
-function apagarMeus(){
-  if(!confirm("Confirmar?")) return;
-  db.ref("registros").once("value", snap=>{
-    snap.forEach(r=>{
-      if(r.val().codigo===usuario.codigo) r.ref.remove();
-    });
+// Ver todos registros (patrão)
+function verTodosRegistros(){
+  get(child(ref(db), `registros`)).then(snapshot=>{
+    const container = document.getElementById("registrosBoss");
+    container.innerHTML = "";
+    if(snapshot.exists()){
+      snapshot.forEach(userSnap=>{
+        const code = userSnap.key;
+        get(child(ref(db), `users/${code}/name`)).then(nameSnap=>{
+          const userName = nameSnap.val() || code;
+          userSnap.forEach(regSnap=>{
+            const r = regSnap.val();
+            container.innerHTML += `<p>${userName} - Entrada: ${r.entrada}, Saída Almoço: ${r.saidaAlmoco}, Retorno: ${r.retornoAlmoco}, Saída: ${r.saida}, Horas Extras: ${r.horaExtra}</p>`;
+          });
+        });
+      });
+    } else {
+      container.innerHTML = "<p>Nenhum registro encontrado.</p>";
+    }
   });
 }
 
-function apagarTudo(){
-  if(!confirm("Tem certeza?")) return;
-  if(!confirm("Última confirmação")) return;
-  db.ref("registros").remove();
+// Apagar todos registros (patrão)
+let confirmDelete = false;
+function apagarTodosRegistros(){
+  if(!confirmDelete){
+    alert("Clique novamente para confirmar apagar todos os registros!");
+    confirmDelete = true;
+    setTimeout(()=>{confirmDelete=false;}, 3000);
+    return;
+  }
+  remove(ref(db, `registros`)).then(()=>{
+    alert("Todos os registros foram apagados!");
+    document.getElementById("registrosBoss").innerHTML = "";
+  });
 }
 </script>
+
 </body>
 </html>
