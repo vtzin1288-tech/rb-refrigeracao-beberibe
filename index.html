@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>RB Refrigeração Beberibe</title>
+<title>RB RefrigeraÃ§Ã£o Beberibe</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body { font-family: Arial, sans-serif; background: #f0f2f5; margin:0; padding:0; }
@@ -24,47 +24,48 @@ td.horaExtra { background: #ffeeba; }
 <body>
 
 <header>
-<h1>RB Refrigeração Beberibe</h1>
-<p>Controle de Funcionários – Sistema Automático</p>
+<h1>RB RefrigeraÃ§Ã£o Beberibe</h1>
+<p>Controle de FuncionÃ¡rios â€“ Sistema AutomÃ¡tico</p>
 </header>
 
 <!-- LOGIN -->
 <section id="loginCard" class="card">
 <h3>Login</h3>
-<input type="text" id="userCode" placeholder="Digite seu código (ex: RB01)">
+<input type="text" id="userCode" placeholder="Digite seu cÃ³digo (ex: RB01)">
 <input type="text" id="userName" placeholder="Digite seu nome (opcional)">
-<button onclick="login()">Entrar</button>
+<button id="loginBtn">Entrar</button>
 <p id="loginMsg" style="color:red;"></p>
 </section>
 
-<!-- FUNCIONÁRIO -->
+<!-- FUNCIONÃRIO -->
 <section id="funcCard" class="card" style="display:none">
 <h3>Bem-vindo <span id="funcName"></span></h3>
 <table>
 <tr>
 <th>Tipo</th>
-<th>Horário</th>
+<th>HorÃ¡rio</th>
 </tr>
 <tr><td>Entrada</td><td><input type="time" id="entrada"></td></tr>
-<tr><td>Saída Almoço</td><td><input type="time" id="saidaAlmoco"></td></tr>
-<tr><td>Retorno Almoço</td><td><input type="time" id="retornoAlmoco"></td></tr>
-<tr><td>Saída Trabalho</td><td><input type="time" id="saida"></td></tr>
+<tr><td>SaÃ­da AlmoÃ§o</td><td><input type="time" id="saidaAlmoco"></td></tr>
+<tr><td>Retorno AlmoÃ§o</td><td><input type="time" id="retornoAlmoco"></td></tr>
+<tr><td>SaÃ­da Trabalho</td><td><input type="time" id="saida"></td></tr>
 <tr><td>Horas Extras</td><td><input type="time" id="horaExtra"></td></tr>
 </table>
-<button onclick="salvarRegistro()">Salvar Registro</button>
-<button onclick="verRegistros()">Ver Meus Registros</button>
+<button id="salvarBtn">Salvar Registro</button>
+<button id="verRegistrosBtn">Ver Meus Registros</button>
 <div id="registrosFuncionario"></div>
 </section>
 
-<!-- PATRÃO -->
+<!-- PATRÃƒO -->
 <section id="bossCard" class="card" style="display:none">
-<h3>Área do Patrão</h3>
-<button onclick="verTodosRegistros()">Ver Todos os Registros</button>
-<button onclick="apagarTodosRegistros()">Apagar Todos os Registros</button>
+<h3>Ãrea do PatrÃ£o</h3>
+<button id="verTodosBtn">Ver Todos os Registros</button>
+<button id="apagarTodosBtn">Apagar Todos os Registros</button>
 <div id="registrosBoss"></div>
 </section>
 
-<script type="module">
+<script>
+// Importar Firebase usando CDN nÃ£o-modular
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import { getDatabase, ref, set, get, child, push, remove } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
@@ -83,12 +84,26 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// Logins válidos
+// Logins vÃ¡lidos
 const funcionarios = Array.from({length:100},(_,i)=>`RB${String(i+1).padStart(2,'0')}`);
-const patrão = ["ADM01"];
+const patrÃ£o = ["ADM01"];
 let currentUser = "";
 
-// === FUNÇÕES ===
+// === ELEMENTOS DOM ===
+const loginBtn = document.getElementById('loginBtn');
+const salvarBtn = document.getElementById('salvarBtn');
+const verRegistrosBtn = document.getElementById('verRegistrosBtn');
+const verTodosBtn = document.getElementById('verTodosBtn');
+const apagarTodosBtn = document.getElementById('apagarTodosBtn');
+
+// === EVENT LISTENERS ===
+loginBtn.addEventListener('click', login);
+if(salvarBtn) salvarBtn.addEventListener('click', salvarRegistro);
+if(verRegistrosBtn) verRegistrosBtn.addEventListener('click', verRegistros);
+if(verTodosBtn) verTodosBtn.addEventListener('click', verTodosRegistros);
+if(apagarTodosBtn) apagarTodosBtn.addEventListener('click', apagarTodosRegistros);
+
+// === FUNÃ‡Ã•ES ===
 
 // LOGIN
 function login() {
@@ -101,7 +116,7 @@ function login() {
       if(snapshot.exists()) {
         const savedName = snapshot.val();
         if(name && name !== savedName){
-          msg.textContent = "Você deve usar o nome já registrado!";
+          msg.textContent = "VocÃª deve usar o nome jÃ¡ registrado!";
           return;
         }
         showFuncionario(savedName);
@@ -114,12 +129,12 @@ function login() {
         showFuncionario(name);
       }
     });
-  } else if(patrão.includes(code)){
+  } else if(patrÃ£o.includes(code)){
     get(child(ref(db), `users/${code}/name`)).then(snapshot=>{
       if(snapshot.exists()) {
         const savedName = snapshot.val();
         if(name && name !== savedName){
-          msg.textContent = "Você deve usar o nome já registrado!";
+          msg.textContent = "VocÃª deve usar o nome jÃ¡ registrado!";
           return;
         }
         showBoss(savedName);
@@ -133,11 +148,11 @@ function login() {
       }
     });
   } else {
-    msg.textContent = "Código inválido!";
+    msg.textContent = "CÃ³digo invÃ¡lido!";
   }
 }
 
-// Mostra área do funcionário
+// Mostra Ã¡rea do funcionÃ¡rio
 function showFuncionario(name){
   currentUser = document.getElementById("userCode").value.toUpperCase();
   document.getElementById("funcName").textContent = name;
@@ -145,14 +160,14 @@ function showFuncionario(name){
   document.getElementById("funcCard").style.display = "block";
 }
 
-// Mostra área do patrão
+// Mostra Ã¡rea do patrÃ£o
 function showBoss(name){
   currentUser = document.getElementById("userCode").value.toUpperCase();
   document.getElementById("loginCard").style.display = "none";
   document.getElementById("bossCard").style.display = "block";
 }
 
-// Salvar registro do funcionário
+// Salvar registro do funcionÃ¡rio
 function salvarRegistro(){
   const registro = {
     entrada: document.getElementById("entrada").value,
@@ -172,7 +187,7 @@ function salvarRegistro(){
   });
 }
 
-// Ver registros do funcionário
+// Ver registros do funcionÃ¡rio
 function verRegistros(){
   get(child(ref(db), `registros/${currentUser}`)).then(snapshot=>{
     const container = document.getElementById("registrosFuncionario");
@@ -180,7 +195,7 @@ function verRegistros(){
     if(snapshot.exists()){
       snapshot.forEach(childSnap=>{
         const r = childSnap.val();
-        container.innerHTML += `<p>Entrada: ${r.entrada}, Saída Almoço: ${r.saidaAlmoco}, Retorno: ${r.retornoAlmoco}, Saída: ${r.saida}, Horas Extras: ${r.horaExtra}</p>`;
+        container.innerHTML += `<p>Entrada: ${r.entrada}, SaÃ­da AlmoÃ§o: ${r.saidaAlmoco}, Retorno: ${r.retornoAlmoco}, SaÃ­da: ${r.saida}, Horas Extras: ${r.horaExtra}</p>`;
       });
     } else {
       container.innerHTML = "<p>Nenhum registro encontrado.</p>";
@@ -188,7 +203,7 @@ function verRegistros(){
   });
 }
 
-// Ver todos registros (patrão)
+// Ver todos registros (patrÃ£o)
 function verTodosRegistros(){
   get(child(ref(db), `registros`)).then(snapshot=>{
     const container = document.getElementById("registrosBoss");
@@ -200,7 +215,7 @@ function verTodosRegistros(){
           const userName = nameSnap.val() || code;
           userSnap.forEach(regSnap=>{
             const r = regSnap.val();
-            container.innerHTML += `<p>${userName} - Entrada: ${r.entrada}, Saída Almoço: ${r.saidaAlmoco}, Retorno: ${r.retornoAlmoco}, Saída: ${r.saida}, Horas Extras: ${r.horaExtra}</p>`;
+            container.innerHTML += `<p>${userName} - Entrada: ${r.entrada}, SaÃ­da AlmoÃ§o: ${r.saidaAlmoco}, Retorno: ${r.retornoAlmoco}, SaÃ­da: ${r.saida}, Horas Extras: ${r.horaExtra}</p>`;
           });
         });
       });
@@ -210,7 +225,7 @@ function verTodosRegistros(){
   });
 }
 
-// Apagar todos registros (patrão)
+// Apagar todos registros (patrÃ£o)
 let confirmDelete = false;
 function apagarTodosRegistros(){
   if(!confirmDelete){
