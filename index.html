@@ -1,75 +1,93 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>RB Refrigeração Beberibe</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background: #f2f2f2;
-      color: #333;
-    }
-    header {
-      background: #0b5ed7;
-      color: white;
-      padding: 20px;
-      text-align: center;
-    }
-    section {
-      padding: 20px;
-    }
-    .card {
-      background: white;
-      padding: 15px;
-      margin-bottom: 15px;
-      border-radius: 8px;
-    }
-    footer {
-      background: #222;
-      color: white;
-      text-align: center;
-      padding: 10px;
-    }
-    a {
-      color: #0b5ed7;
-      text-decoration: none;
-      font-weight: bold;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>RB Refrigeração Beberibe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f2f2f2;
+}
+
+header {
+  background: #0b5ed7;
+  color: white;
+  padding: 20px;
+  text-align: center;
+}
+
+section {
+  padding: 20px;
+}
+
+.card {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+input, button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+}
+
+button {
+  background: #0b5ed7;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+}
+</style>
 </head>
+
 <body>
 
 <header>
   <h1>RB Refrigeração Beberibe</h1>
-  <p>Manutenção e instalação de refrigeração</p>
+  <p>Área do Funcionário</p>
 </header>
 
-<section>
-  <div class="card">
-    <h2>Sobre a empresa</h2>
-    <p>Trabalhamos com refrigeração comercial e residencial, atendendo clientes dentro e fora da empresa.</p>
-  </div>
-
-  <div class="card">
-    <h2>Serviços</h2>
-    <ul>
-      <li>Manutenção de geladeiras</li>
-      <li>Freezers e câmaras frias</li>
-      <li>Instalação e conserto</li>
-    </ul>
-  </div>
-
-  <div class="card">
-    <h2>Contato</h2>
-    <p>Telefone / WhatsApp: <br>📞 (coloque seu número aqui)</p>
-  </div>
+<section class="card">
+  <h3>Login</h3>
+  <input id="id" placeholder="ID do funcionário (ex: RB01)">
+  <button onclick="entrar()">Entrar</button>
 </section>
 
-<footer>
-  <p>© 2026 RB Refrigeração Beberibe</p>
-</footer>
+<section class="card" id="painel" style="display:none">
+  <h3>Ponto Eletrônico</h3>
+  <button onclick="registrar('Entrada')">Entrada</button>
+  <button onclick="registrar('Saída Almoço')">Saída Almoço</button>
+  <button onclick="registrar('Volta Almoço')">Volta Almoço</button>
+  <button onclick="registrar('Saída')">Saída</button>
+  <p id="log"></p>
+</section>
+
+<script>
+let funcionario = "";
+
+function entrar() {
+  const id = document.getElementById("id").value;
+  if (id.startsWith("RB")) {
+    funcionario = id;
+    document.querySelector(".card").style.display = "none";
+    document.getElementById("painel").style.display = "block";
+  } else {
+    alert("ID inválido");
+  }
+}
+
+function registrar(tipo) {
+  const hora = new Date().toLocaleTimeString();
+  document.getElementById("log").innerHTML += `<br>${funcionario} - ${tipo}: ${hora}`;
+}
+</script>
 
 </body>
-  </html>
+</html>
