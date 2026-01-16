@@ -16,7 +16,7 @@ table { width:100%; border-collapse: collapse; margin-top:10px; font-size:14px; 
 th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 th { background:#0b5ed7; color:white; }
 #funcCard, #bossCard { display:none; }
-.top-button { float:right; margin-bottom:10px; width:auto; padding:8px 16px; }
+.top-button { float:right; margin-bottom:10px; width:auto; padding:8px 16px; margin-left:5px; }
 </style>
 </head>
 <body>
@@ -30,7 +30,7 @@ th { background:#0b5ed7; color:white; }
 <section class="card" id="loginCard">
 <h3>Login</h3>
 <input type="text" id="userCode" placeholder="Digite seu código (ex: RB01 ou ADM01)">
-<input type="text" id="userName" placeholder="Digite seu nome (opcional)">
+<input type="text" id="userName" placeholder="Digite seu nome (obrigatório para funcionários)">
 <button onclick="login()">Entrar</button>
 <p id="loginMsg" style="color:red;"></p>
 </section>
@@ -58,7 +58,6 @@ th { background:#0b5ed7; color:white; }
 </tr>
 </table>
 <button onclick="saveRecord()">Salvar Registro</button>
-
 <div id="userRecords"></div>
 </section>
 
@@ -70,38 +69,79 @@ th { background:#0b5ed7; color:white; }
 <div id="allRecords"></div>
 </section>
 
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
-// Códigos válidos
+// ========== CONFIGURAÇÃO DO FIREBASE ==========
+const firebaseConfig = {
+  apiKey: "COLE_AQUI",
+  authDomain: "COLE_AQUI",
+  projectId: "COLE_AQUI",
+  storageBucket: "COLE_AQUI",
+  messagingSenderId: "COLE_AQUI",
+  appId: "COLE_AQUI"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ========== CÓDIGOS VÁLIDOS ==========
 const employeeCodes = [];
 for(let i=1;i<=100;i++){ employeeCodes.push('RB'+String(i).padStart(2,'0')); }
 const bossCode = 'ADM01';
 
-// Variáveis para confirmação dupla
+// ========== VARIÁVEIS CONFIRMAÇÃO DUPLA ==========
 let confirmDeleteUser = false;
 let confirmDeleteAll = false;
 
-// Login
-function login() {
+// ========== LOGIN ==========
+async function login(){
     const code = document.getElementById('userCode').value.toUpperCase();
-    const name = document.getElementById('userName').value || code;
+    const nameInput = document.getElementById('userName').value.trim();
+    const loginMsg = document.getElementById('loginMsg');
 
     if(code === bossCode){
         document.getElementById('loginCard').style.display='none';
         document.getElementById('bossCard').style.display='block';
-    } else if(employeeCodes.includes(code)){
-        document.getElementById('loginCard').style.display='none';
-        document.getElementById('funcCard').style.display='block';
-        document.getElementById('funcNameDisplay').innerText = name;
-        displayUserRecords();
-    } else {
-        document.getElementById('loginMsg').innerText = 'Código inválido!';
+        loginMsg.innerText = '';
+        return;
+    } 
+
+    if(!employeeCodes.includes(code)){
+        loginMsg.innerText = 'Código inválido!';
+        return;
     }
+
+    if(!nameInput){
+        loginMsg.innerText = 'O nome é obrigatório!';
+        return;
+    }
+
+    // Verificar se já existe nome registrado
+    const docRef = db.collection('funcionarios').doc(code);
+    const doc = await docRef.get();
+    if(doc.exists){
+        const storedName = doc.data().nome;
+        if(storedName !== nameInput){
+            loginMsg.innerText = 'Nome não corresponde ao registrado!';
+            return;
+        }
+    } else {
+        // Primeiro login: salva o nome
+        await docRef.set({nome: nameInput});
+    }
+
+    document.getElementById('loginCard').style.display='none';
+    document.getElementById('funcCard').style.display='block';
+    document.getElementById('funcNameDisplay').innerText = nameInput;
+    displayUserRecords();
+    loginMsg.innerText = '';
 }
 
-// Salvar registro do funcionário
+// ========== FUNCIONÁRIO: SALVAR REGISTRO ==========
 function saveRecord(){
     const code = document.getElementById('userCode').value.toUpperCase();
-    const name = document.getElementById('userName').value || code;
+    const name = document.getElementById('userName').value;
     const entrada = document.getElementById('entrada').value;
     const saidaAlmoco = document.getElementById('saidaAlmoco').value;
     const retornoAlmoco = document.getElementById('retornoAlmoco').value;
@@ -113,63 +153,105 @@ function saveRecord(){
         return;
     }
 
-    const record = { name, entrada, saidaAlmoco, retornoAlmoco, saida, horaExtra, date: new Date().toLocaleString() };
-    let records = JSON.parse(localStorage.getItem(code)) || [];
-    records.push(record);
-    localStorage.setItem(code, JSON.stringify(records));
-    displayUserRecords();
+    db.collection('funcionarios').doc(code).collection('registros').add({
+        nome: name,
+        entrada, saidaAlmoco, retornoAlmoco, saida, horaExtra,
+        data: new Date().toLocaleString()
+    }).then(()=>{
+        displayUserRecords();
+        alert('Registro salvo com sucesso!');
+    });
 }
 
-// Mostrar registros do usuário
+// ========== FUNCIONÁRIO: MOSTRAR REGISTROS ==========
 function displayUserRecords(){
     const code = document.getElementById('userCode').value.toUpperCase();
-    let records = JSON.parse(localStorage.getItem(code)) || [];
-    let html = '<table><tr><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th><th>Data</th></tr>';
-    records.forEach(r => {
-        html += `<tr><td>${r.entrada}</td><td>${r.saidaAlmoco}</td><td>${r.retornoAlmoco}</td><td>${r.saida}</td><td>${r.horaExtra}</td><td>${r.date}</td></tr>`;
+    const div = document.getElementById('userRecords');
+    div.innerHTML = '<p>Carregando registros...</p>';
+    db.collection('funcionarios').doc(code).collection('registros').orderBy('data','desc').get()
+    .then(snapshot=>{
+        if(snapshot.empty){
+            div.innerHTML = 'Nenhum registro encontrado.';
+            return;
+        }
+        let html = '<table><tr><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th><th>Data</th></tr>';
+        snapshot.forEach(doc=>{
+            const r = doc.data();
+            html += `<tr>
+            <td>${r.entrada}</td>
+            <td>${r.saidaAlmoco}</td>
+            <td>${r.retornoAlmoco}</td>
+            <td>${r.saida}</td>
+            <td>${r.horaExtra}</td>
+            <td>${r.data}</td>
+            </tr>`;
+        });
+        html += '</table>';
+        div.innerHTML = html;
     });
-    html += '</table>';
-    document.getElementById('userRecords').innerHTML = html;
 }
 
-// Confirmação dupla apagar registros do funcionário
+// ========== FUNCIONÁRIO: APAGAR TODOS REGISTROS ==========
 function deleteUserRecords(){
     if(!confirmDeleteUser){
         confirmDeleteUser = true;
         document.getElementById('deleteRecordsBtn').innerText = 'Clique novamente para confirmar';
     } else {
         const code = document.getElementById('userCode').value.toUpperCase();
-        localStorage.removeItem(code);
-        displayUserRecords();
-        confirmDeleteUser = false;
-        document.getElementById('deleteRecordsBtn').innerText = 'Apagar Todos Meus Registros';
-        alert('Seus registros foram apagados. Patrão ainda pode ver registros antigos.');
+        db.collection('funcionarios').doc(code).collection('registros').get().then(snapshot=>{
+            snapshot.forEach(doc=> doc.ref.delete() );
+        }).then(()=>{
+            confirmDeleteUser = false;
+            document.getElementById('deleteRecordsBtn').innerText = 'Apagar Todos Meus Registros';
+            displayUserRecords();
+            alert('Seus registros foram apagados. Patrão ainda pode ver registros antigos.');
+        });
     }
 }
 
-// Área do patrão: ver todos os registros
+// ========== PATRÃO: VER TODOS OS REGISTROS ==========
 function viewAllEmployeeRecords(){
-    let html = '<h4>Todos os Registros:</h4>';
-    employeeCodes.forEach(code => {
-        let records = JSON.parse(localStorage.getItem(code)) || [];
-        if(records.length > 0){
-            html += `<h5>${code}</h5><table><tr><th>Nome</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th><th>Data</th></tr>`;
-            records.forEach(r=>{
-                html += `<tr><td>${r.name}</td><td>${r.entrada}</td><td>${r.saidaAlmoco}</td><td>${r.retornoAlmoco}</td><td>${r.saida}</td><td>${r.horaExtra}</td><td>${r.date}</td></tr>`;
+    const div = document.getElementById('allRecords');
+    div.innerHTML = '<p>Carregando registros...</p>';
+    let html = '';
+    employeeCodes.forEach(code=>{
+        db.collection('funcionarios').doc(code).get().then(doc=>{
+            if(!doc.exists) return;
+            const storedName = doc.data().nome;
+            db.collection('funcionarios').doc(code).collection('registros').orderBy('data','desc').get().then(snapshot=>{
+                if(!snapshot.empty){
+                    html += `<h4>${storedName}</h4><table><tr><th>Nome</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Horas Extras</th><th>Data</th></tr>`;
+                    snapshot.forEach(r=>{
+                        const rec = r.data();
+                        html += `<tr>
+                        <td>${rec.nome}</td>
+                        <td>${rec.entrada}</td>
+                        <td>${rec.saidaAlmoco}</td>
+                        <td>${rec.retornoAlmoco}</td>
+                        <td>${rec.saida}</td>
+                        <td>${rec.horaExtra}</td>
+                        <td>${rec.data}</td>
+                        </tr>`;
+                    });
+                    html += '</table>';
+                    div.innerHTML = html;
+                }
             });
-            html += '</table>';
-        }
+        });
     });
-    document.getElementById('allRecords').innerHTML = html;
 }
 
-// Confirmação dupla apagar todos os registros (patrão)
+// ========== PATRÃO: APAGAR TODOS OS REGISTROS ==========
 function deleteAllRecords(){
     if(!confirmDeleteAll){
         confirmDeleteAll = true;
         document.getElementById('deleteAllBtn').innerText = 'Clique novamente para confirmar';
     } else {
-        employeeCodes.forEach(code => localStorage.removeItem(code));
+        employeeCodes.forEach(code=>{
+            db.collection('funcionarios').doc(code).collection('registros').get().then(snapshot=>{
+                snapshot.forEach(doc=> doc.ref.delete() );
+            });
+        });
         confirmDeleteAll = false;
         document.getElementById('deleteAllBtn').innerText = 'Apagar Todos os Registros de Todos';
         document.getElementById('allRecords').innerHTML = '';
