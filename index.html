@@ -262,3 +262,54 @@ function deleteAllRecords(){
 
 </body>
     </html>
+<!-- Seu Firebase já inicializado -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js"></script>
+
+<script>
+  // Sua configuração do Firebase
+  const firebaseConfig = {
+    apiKey: "SUA_API_KEY",
+    authDomain: "SEU_AUTH_DOMAIN",
+    projectId: "SEU_PROJECT_ID",
+    // ... restante da config
+  };
+
+  // Inicializando Firebase
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // ============================
+  // Coloque o código do botão RESET AQUI
+  function criarBotaoResetNome() {
+      const btn = document.createElement("button");
+      btn.innerText = "Resetar Nome Temporário";
+      btn.style.position = "fixed";
+      btn.style.bottom = "10px";
+      btn.style.right = "10px";
+      btn.style.padding = "10px";
+      btn.style.background = "#dc3545";
+      btn.style.color = "white";
+      btn.style.border = "none";
+      btn.style.borderRadius = "5px";
+      btn.style.zIndex = "9999";
+      btn.style.cursor = "pointer";
+
+      btn.onclick = async function () {
+          const codigo = prompt("Digite o código que quer resetar (ex: RB01 ou ADM01):");
+          if (!codigo) return alert("Código inválido!");
+          try {
+              await db.collection("funcionarios").doc(codigo).update({ nome: "" });
+              alert("Nome resetado com sucesso! Agora é só entrar novamente e cadastrar o nome.");
+          } catch (err) {
+              console.error(err);
+              alert("Erro ao resetar o nome. Verifique se o código existe.");
+          }
+      };
+
+      document.body.appendChild(btn);
+  }
+
+  criarBotaoResetNome(); // cria o botão
+  // ============================
+</script>
