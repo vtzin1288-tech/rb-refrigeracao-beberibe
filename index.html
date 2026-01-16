@@ -2,240 +2,137 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>RB Refrigeração Beberibe</title>
+<title>Refrigeração Berberib</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <style>
-body { font-family: Arial, sans-serif; background: #f0f2f5; margin:0; padding:0; }
-header { background: #0b5ed7; color: white; padding: 20px; text-align:center; }
-section { padding: 20px; }
-.card { background: white; padding:20px; border-radius:8px; box-shadow:0 0 15px rgba(0,0,0,0.2); margin-bottom:20px; }
-input, button { width:100%; padding:12px; margin-top:10px; font-size:16px; }
-button { background:#0b5ed7; color:white; border:none; border-radius:5px; cursor:pointer; }
-button:hover { opacity:0.9; }
-table { width:100%; border-collapse: collapse; margin-top:10px; font-size:14px; }
-th, td { border:1px solid #ccc; padding:8px; text-align:center; }
-th { background:#0b5ed7; color:white; }
-td.entrada { background: #d4edda; }
-td.saida { background: #f8d7da; }
-td.almoco { background: #fff3cd; }
-td.horaExtra { background: #ffeeba; }
+body { font-family: Arial; background:#f0f2f5; margin:0; padding:0 }
+.card { background:#fff; margin:20px; padding:20px; border-radius:8px }
+button, input { width:100%; padding:10px; margin-top:10px }
+button { background:#0b5ed7; color:#fff; border:none; cursor:pointer }
+table { width:100%; border-collapse:collapse; margin-top:10px }
+th,td { border:1px solid #ccc; padding:5px; text-align:center }
 </style>
 </head>
+
 <body>
 
-<header>
-<h1>RB Refrigeração Beberibe</h1>
-<p>Sistema de Controle de Horários</p>
-</header>
-
-<!-- LOGIN -->
-<section id="loginCard" class="card">
+<div class="card" id="login">
 <h3>Login</h3>
-<input type="text" id="userCode" placeholder="Digite seu código (ex: RB01 ou ADM01)">
-<input type="text" id="userName" placeholder="Digite seu nome opcional">
+<input id="codigo" placeholder="Código (RB01 ou ADM01)">
+<input id="nome" placeholder="Nome (qualquer)">
 <button onclick="login()">Entrar</button>
-<p id="loginMsg" style="color:red;"></p>
-</section>
+</div>
 
-<!-- ÁREA DO FUNCIONÁRIO -->
-<section id="funcCard" class="card" style="display:none">
-<h3>Bem-vindo <span id="funcName"></span></h3>
-<button onclick="verRegistrosFuncionario()">Ver Todos os Seus Registros</button>
-<table id="horariosTable">
-<thead>
-<tr>
-<th>Entrada</th>
-<th>Saída Almoço</th>
-<th>Retorno Almoço</th>
-<th>Saída Trabalho</th>
-<th>Hora Extra</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><input type="time" id="entrada"></td>
-<td><input type="time" id="saidaAlmoco"></td>
-<td><input type="time" id="retornoAlmoco"></td>
-<td><input type="time" id="saidaTrabalho"></td>
-<td><input type="time" id="horaExtra"></td>
-</tr>
-</tbody>
-</table>
+<div class="card" id="func" style="display:none">
+<h3>Funcionário</h3>
+
+<input id="entrada" placeholder="Hora Entrada">
+<input id="almoco" placeholder="Hora Almoço">
+<input id="volta" placeholder="Volta Almoço">
+<input id="saida" placeholder="Saída">
+<input id="extra" placeholder="Hora Extra">
+
 <button onclick="salvarRegistro()">Salvar Registro</button>
-<h4>Seus registros:</h4>
-<div id="registrosFuncionario"></div>
-</section>
+<button onclick="carregarMeus()">Ver Meus Registros</button>
+<button onclick="apagarMeus()">Apagar Meus Registros</button>
 
-<!-- ÁREA DO PATRÃO -->
-<section id="bossCard" class="card" style="display:none">
+<div id="meus"></div>
+</div>
+
+<div class="card" id="adm" style="display:none">
 <h3>Área do Patrão</h3>
-<button onclick="verTodosRegistros()">Ver Todos os Registros de Funcionários</button>
-<button onclick="apagarTodosRegistros()">Apagar Todos os Registros de Todos</button>
-<button onclick="resetNomes()">Resetar Nome Opcional</button>
-<h4>Todos os Registros:</h4>
-<div id="todosRegistros"></div>
-</section>
+<button onclick="carregarTodos()">Ver Todos Registros</button>
+<button onclick="apagarTudo()">Apagar TODOS Registros</button>
+<div id="todos"></div>
+</div>
 
 <script>
-// ==== CONFIGURAÇÃO ====
-const codigosValidos = [];
-for (let i=1; i<=100; i++) {
-    codigosValidos.push("RB"+i.toString().padStart(2,'0'));
-}
-const codigoPatrao = "ADM01";
+// 🔥 CONFIG FIREBASE (SUBSTITUA)
+const firebaseConfig = {
+  apiKey: "SUA_API_KEY",
+  authDomain: "SEU_DOMINIO",
+  databaseURL: "SUA_DATABASE_URL",
+  projectId: "SEU_PROJECT_ID",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-// ==== ARMAZENAMENTO ====
-let registros = JSON.parse(localStorage.getItem("registros")) || {};
-let nomesFixos = JSON.parse(localStorage.getItem("nomesFixos")) || {};
+let usuario = {};
 
-// ==== LOGIN ====
 function login(){
-    const code = document.getElementById("userCode").value.trim().toUpperCase();
-    const name = document.getElementById("userName").value.trim();
-    const loginMsg = document.getElementById("loginMsg");
-    loginMsg.textContent = "";
-
-    if(code === codigoPatrao){
-        // Patrão
-        showBoss();
-    } else if(codigosValidos.includes(code)){
-        // Funcionário
-        // Verifica nome opcional fixo
-        if(nomesFixos[code]){
-            if(name !== nomesFixos[code]){
-                loginMsg.textContent = "Erro: Nome incorreto. Deve ser o nome fixo definido anteriormente.";
-                return;
-            }
-        } else {
-            if(!name){
-                loginMsg.textContent = "Você precisa definir um nome opcional.";
-                return;
-            }
-            nomesFixos[code] = name;
-            localStorage.setItem("nomesFixos", JSON.stringify(nomesFixos));
-        }
-        showFuncionario(code, name);
-    } else {
-        loginMsg.textContent = "Código inválido.";
-    }
+  const c = codigo.value.toUpperCase();
+  if(c === "ADM01"){
+    usuario = { tipo:"adm" };
+    login.style.display="none";
+    adm.style.display="block";
+  } else if(/^RB\d{2,3}$/.test(c)){
+    usuario = { tipo:"func", codigo:c, nome:nome.value || "Sem nome" };
+    login.style.display="none";
+    func.style.display="block";
+  } else {
+    alert("Código inválido");
+  }
 }
 
-// ==== MOSTRAR FUNCIONÁRIO ====
-let usuarioAtual = "";
-function showFuncionario(code, name){
-    usuarioAtual = code;
-    document.getElementById("loginCard").style.display="none";
-    document.getElementById("funcCard").style.display="block";
-    document.getElementById("funcName").textContent = name;
-    atualizarRegistrosFuncionario();
-}
-
-// ==== SALVAR REGISTRO ====
 function salvarRegistro(){
-    const entrada = document.getElementById("entrada").value;
-    const saidaAlmoco = document.getElementById("saidaAlmoco").value;
-    const retornoAlmoco = document.getElementById("retornoAlmoco").value;
-    const saidaTrabalho = document.getElementById("saidaTrabalho").value;
-    const horaExtra = document.getElementById("horaExtra").value;
-
-    if(!registros[usuarioAtual]){
-        registros[usuarioAtual] = [];
-    }
-
-    const registro = {
-        data: new Date().toLocaleString(),
-        entrada, saidaAlmoco, retornoAlmoco, saidaTrabalho, horaExtra,
-        nome: nomesFixos[usuarioAtual]
-    };
-    registros[usuarioAtual].push(registro);
-    localStorage.setItem("registros", JSON.stringify(registros));
-    atualizarRegistrosFuncionario();
-    alert("Registro salvo!");
+  const data = new Date().toLocaleDateString();
+  db.ref("registros").push({
+    codigo: usuario.codigo,
+    nome: usuario.nome,
+    data,
+    entrada: entrada.value,
+    almoco: almoco.value,
+    volta: volta.value,
+    saida: saida.value,
+    extra: extra.value
+  });
+  alert("Registro salvo!");
 }
 
-// ==== ATUALIZAR REGISTROS FUNCIONÁRIO ====
-function atualizarRegistrosFuncionario(){
-    const div = document.getElementById("registrosFuncionario");
-    div.innerHTML = "";
-    if(!registros[usuarioAtual]) return;
-    let html = `<table><tr>
-    <th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Hora Extra</th></tr>`;
-    registros[usuarioAtual].forEach(r=>{
-        html+=`<tr>
-        <td>${r.data}</td>
-        <td>${r.entrada}</td>
-        <td>${r.saidaAlmoco}</td>
-        <td>${r.retornoAlmoco}</td>
-        <td>${r.saidaTrabalho}</td>
-        <td>${r.horaExtra}</td>
-        </tr>`;
+function carregarMeus(){
+  db.ref("registros").once("value", snap=>{
+    let html="<table><tr><th>Data</th><th>Entrada</th><th>Saída</th></tr>";
+    snap.forEach(r=>{
+      const d=r.val();
+      if(d.codigo===usuario.codigo){
+        html+=`<tr><td>${d.data}</td><td>${d.entrada}</td><td>${d.saida}</td></tr>`;
+      }
     });
     html+="</table>";
-    div.innerHTML = html;
+    meus.innerHTML=html;
+  });
 }
 
-// ==== VER TODOS REGISTROS (PATRÃO) ====
-function showBoss(){
-    document.getElementById("loginCard").style.display="none";
-    document.getElementById("bossCard").style.display="block";
+function carregarTodos(){
+  db.ref("registros").once("value", snap=>{
+    let html="<table><tr><th>Nome</th><th>Código</th><th>Data</th></tr>";
+    snap.forEach(r=>{
+      const d=r.val();
+      html+=`<tr><td>${d.nome}</td><td>${d.codigo}</td><td>${d.data}</td></tr>`;
+    });
+    html+="</table>";
+    todos.innerHTML=html;
+  });
 }
 
-function verTodosRegistros(){
-    const div = document.getElementById("todosRegistros");
-    div.innerHTML="";
-    for(const code in registros){
-        const nome = nomesFixos[code] || code;
-        div.innerHTML += `<h4>${nome}</h4>`;
-        let html = `<table><tr>
-        <th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno Almoço</th><th>Saída Trabalho</th><th>Hora Extra</th></tr>`;
-        registros[code].forEach(r=>{
-            html+=`<tr>
-            <td>${r.data}</td>
-            <td>${r.entrada}</td>
-            <td>${r.saidaAlmoco}</td>
-            <td>${r.retornoAlmoco}</td>
-            <td>${r.saidaTrabalho}</td>
-            <td>${r.horaExtra}</td>
-            </tr>`;
-        });
-        html+="</table>";
-        div.innerHTML += html;
-    }
+function apagarMeus(){
+  if(!confirm("Confirmar?")) return;
+  db.ref("registros").once("value", snap=>{
+    snap.forEach(r=>{
+      if(r.val().codigo===usuario.codigo) r.ref.remove();
+    });
+  });
 }
 
-// ==== APAGAR TODOS REGISTROS (PATRÃO) ====
-let confirmarApagar = false;
-function apagarTodosRegistros(){
-    if(!confirmarApagar){
-        alert("Clique novamente para confirmar apagar TODOS os registros!");
-        confirmarApagar = true;
-        setTimeout(()=>{confirmarApagar=false},5000);
-        return;
-    }
-    registros = {};
-    localStorage.setItem("registros", JSON.stringify(registros));
-    document.getElementById("todosRegistros").innerHTML="";
-    alert("Todos os registros apagados!");
-}
-
-// ==== RESET DE NOMES OPCIONAIS (PATRÃO) ====
-function resetNomes(){
-    const code = prompt("Digite o código do funcionário para resetar o nome opcional:");
-    if(!code) return;
-    if(!nomesFixos[code]){
-        alert("Código não possui nome definido.");
-        return;
-    }
-    delete nomesFixos[code];
-    localStorage.setItem("nomesFixos", JSON.stringify(nomesFixos));
-    alert("Nome opcional resetado. Funcionário poderá definir novo nome ao logar.");
-}
-
-// ==== VER REGISTROS DO FUNCIONÁRIO ====
-function verRegistrosFuncionario(){
-    atualizarRegistrosFuncionario();
+function apagarTudo(){
+  if(!confirm("Tem certeza?")) return;
+  if(!confirm("Última confirmação")) return;
+  db.ref("registros").remove();
 }
 </script>
-
 </body>
 </html>
